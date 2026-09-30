@@ -1,0 +1,250 @@
+sudo sfltool dumpbtm > dumpbtm.txt
+
+========================
+ Records for UID -2 : FFFFFFFF-0000-0000-0000-0000000000FE
+========================
+
+ ServiceManagement migrated: true
+ LaunchServices registered: false
+
+ Items:
+
+ #1:
+                 UUID: AAAAAAAA-0000-4000-8000-000000000001
+                 Name: (null)
+       Developer Name: (null)
+                 Type: developer (0x20)
+                Flags: [  ] (0)
+          Disposition: [disabled, allowed, visible, not notified] (0x2)
+           Identifier: Unknown Developer
+                  URL: (null)
+           Generation: 0
+  Embedded Item Identifiers:
+    #1: 16.net.example.helperd
+
+ #2:
+                 UUID: AAAAAAAA-0000-4000-8000-000000000002
+                 Name: net.example.helperd
+       Developer Name: (null)
+                 Type: legacy daemon (0x10010)
+                Flags: [ legacy ] (0x1)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 16.net.example.helperd
+                  URL: file:///Library/LaunchDaemons/net.example.helperd.plist
+      Executable Path: /Library/PrivilegedHelperTools/net.example.helperd
+           Generation: 4
+    Assoc. Bundle IDs: [ com.example.helper ]
+    Parent Identifier: Unknown Developer
+
+ #3:
+                 UUID: AAAAAAAA-0000-4000-8000-000000000003
+                 Name: (null)
+       Developer Name: Example Corp
+                 Type: developer (0x20)
+                Flags: [  ] (0)
+          Disposition: [disabled, allowed, visible, notified] (0xa)
+           Identifier: Example Corp
+                  URL: (null)
+           Generation: 1
+  Embedded Item Identifiers:
+    #1: 16.net.example.helperd
+
+ #4:
+                 UUID: AAAAAAAA-0000-4000-8000-000000000004
+                 Name: (null)
+       Developer Name: Example Metrics
+                 Type: developer (0x20)
+                Flags: [  ] (0)
+          Disposition: [disabled, allowed, visible, notified] (0xa)
+           Identifier: Example Metrics
+                  URL: (null)
+           Generation: 0
+  Embedded Item Identifiers:
+    #1: 16.net.example.meterd
+
+ #5:
+                 UUID: AAAAAAAA-0000-4000-8000-000000000005
+                 Name: net.example.meterd
+       Developer Name: Example Metrics
+      Team Identifier: ABCDE12345
+                 Type: legacy daemon (0x10010)
+                Flags: [ legacy ] (0x1)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 16.net.example.meterd
+                  URL: file:///Library/LaunchDaemons/net.example.meterd.plist
+      Executable Path: /Library/PrivilegedHelperTools/net.example.meterd
+           Generation: 2
+    Assoc. Bundle IDs: [ com.example.meter ]
+    Parent Identifier: Example Metrics
+
+ #6:
+                 UUID: AAAAAAAA-0000-4000-8000-000000000006
+                 Name: com.example.qlplugin
+       Developer Name: Example Corp
+      Team Identifier: ABCDE12345
+                 Type: quicklook (0x800)
+                Flags: [  ] (0)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 2048.com.example.qlplugin
+                  URL: Contents/PlugIns/ExamplePreview.appex
+           Generation: 0
+    Bundle Identifier: com.example.preview
+    Parent Identifier: Example Corp
+
+========================
+ Records for UID 0 : FFFFFFFF-0000-0000-0000-000000000000
+========================
+
+ ServiceManagement migrated: false
+ LaunchServices registered: false
+
+ Items:
+
+ #1:
+                 UUID: BBBBBBBB-0000-4000-8000-000000000001
+                 Name: (null)
+       Developer Name: (null)
+                 Type: developer (0x20)
+                Flags: [  ] (0)
+          Disposition: [disabled, allowed, visible, notified] (0xa)
+           Identifier: Unknown Developer
+                  URL: (null)
+           Generation: 1
+
+ #2:
+                 UUID: BBBBBBBB-0000-4000-8000-000000000002
+                 Name: net.example.rootd
+       Developer Name: (null)
+                 Type: legacy daemon (0x10010)
+                Flags: [ legacy ] (0x1)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 16.net.example.rootd
+                  URL: file:///Library/LaunchDaemons/net.example.rootd.plist
+      Executable Path: /Library/PrivilegedHelperTools/net.example.rootd
+           Generation: 3
+    Parent Identifier: Unknown Developer
+
+========================
+ Records for UID 501 : 11111111-2222-3333-4444-555555555555
+========================
+
+ ServiceManagement migrated: true
+ LaunchServices registered: true
+
+ Items:
+
+ #1:
+                 UUID: CCCCCCCC-0000-4000-8000-000000000001
+                 Name: (null)
+       Developer Name: (null)
+                 Type: developer (0x20)
+                Flags: [  ] (0)
+          Disposition: [disabled, allowed, visible, notified] (0xa)
+           Identifier: Unknown Developer
+                  URL: (null)
+           Generation: 0
+
+ #2:
+                 UUID: CCCCCCCC-0000-4000-8000-000000000002
+                 Name: Example Toolbox
+       Developer Name: Example Corp
+      Team Identifier: ABCDE12345
+                 Type: app (0x2)
+                Flags: [  ] (0)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 2.com.example.toolbox
+                  URL: file:///Applications/ExampleToolbox.app/
+           Generation: 12
+    Bundle Identifier: com.example.toolbox
+  Embedded Item Identifiers:
+    #1: 4.ABCDE12345.com.example.toolbox.login
+    #2: 2048.com.example.toolbox.preview
+
+ #3:
+                 UUID: CCCCCCCC-0000-4000-8000-000000000003
+                 Name: ExampleToolboxHelper
+       Developer Name: Example Corp
+      Team Identifier: ABCDE12345
+                 Type: login item (0x4)
+                Flags: [  ] (0)
+          Disposition: [enabled, allowed, visible, not notified] (0x3)
+           Identifier: 4.ABCDE12345.com.example.toolbox.login
+                  URL: Contents/Library/LoginItems/ExampleToolboxHelper.app
+           Generation: 12
+    Bundle Identifier: com.example.toolbox.helper
+    Parent Identifier: 2.com.example.toolbox
+
+ #4:
+                 UUID: CCCCCCCC-0000-4000-8000-000000000004
+                 Name: com.example.toolbox.preview
+       Developer Name: Example Corp
+      Team Identifier: ABCDE12345
+                 Type: quicklook (0x800)
+                Flags: [  ] (0)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 2048.com.example.toolbox.preview
+                  URL: Contents/PlugIns/ExampleToolboxPreview.appex
+           Generation: 13
+    Bundle Identifier: com.example.toolbox.preview
+    Parent Identifier: 2.com.example.toolbox
+
+ #5:
+                 UUID: CCCCCCCC-0000-4000-8000-000000000005
+                 Name: Example Reader
+       Developer Name: Acme Inc
+      Team Identifier: ZZZZZ99999
+                 Type: app (0x2)
+                Flags: [  ] (0)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 2.com.example.reader
+                  URL: file:///Applications/ExampleReader.app/
+           Generation: 8
+    Bundle Identifier: com.example.reader
+  Embedded Item Identifiers:
+    #1: 64.com.example.reader.mdimporter
+
+ #6:
+                 UUID: CCCCCCCC-0000-4000-8000-000000000006
+                 Name: ExampleReaderHelper
+       Developer Name: Acme Inc
+      Team Identifier: ZZZZZ99999
+                 Type: login item (0x4)
+                Flags: [  ] (0)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 4.ZZZZZ99999.com.example.reader.helper
+                  URL: Contents/Library/LoginItems/ExampleReaderHelper.app
+           Generation: 5
+    Bundle Identifier: com.example.reader.helper
+    Parent Identifier: 2.com.example.reader
+
+ #7:
+                 UUID: CCCCCCCC-0000-4000-8000-000000000007
+                 Name: ExampleReaderHelper
+       Developer Name: Acme Inc
+      Team Identifier: ZZZZZ99999
+                 Type: login item (0x4)
+                Flags: [  ] (0)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 4.ZZZZZ99999.com.example.reader.helper
+                  URL: Contents/Library/LoginItems/ExampleReaderHelper.app
+           Generation: 6
+    Bundle Identifier: com.example.reader.helper
+    Parent Identifier: 2.com.example.reader
+
+ #8:
+                 UUID: CCCCCCCC-0000-4000-8000-000000000008
+                 Name: com.example.reader.mdimporter
+       Developer Name: Acme Inc
+      Team Identifier: ZZZZZ99999
+                 Type: spotlight (0x40)
+                Flags: [  ] (0)
+          Disposition: [enabled, allowed, visible, notified] (0xb)
+           Identifier: 64.com.example.reader.mdimporter
+                  URL: Contents/Library/Spotlight/ExampleImporter.mdimporter
+           Generation: 1
+    Bundle Identifier: com.example.reader.spotlight
+    Parent Identifier: 2.com.example.reader
+
+
+
+

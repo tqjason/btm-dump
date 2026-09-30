@@ -1,0 +1,267 @@
+#!/usr/bin/env node
+/*
+ * btm-selftest.js —— 浏览页自检（仅开发用，不参与正常使用）
+ *
+ * 用最小 DOM 桩在 Node 里真跑一遍 btm_items.html 里的 JS，
+ * 覆盖：表格渲染 / 排序 / 筛选 / 列面板 / 8 棵关系树 / 折叠 / 详情面板 / 字段说明 / 视图切换。
+ *
+ * 用法：
+ *   node btm-selftest.js <快照目录>/btm_items.html
+ *
+ * 注意：这不是工具链的一部分，正常使用 btm.sh 完全不需要 Node。
+ */
+
+'use strict';
+const fs = require('fs'), vm = require('vm');
+
+const file = process.argv[2];
+if (!file) { console.error('用法: node btm-selftest.js <btm_items.html>'); process.exit(2); }
+const html = fs.readFileSync(file, 'utf8');
+
+const dblock = html.match(/<script id="btm-data" type="application\/json">\n([\s\S]*?)\n<\/script>/);
+const jsblock = html.match(/<script>\n([\s\S]*?)\n<\/script>/);
+if (!dblock || !jsblock) { console.error('✗ 脚本块提取失败，HTML 结构可能被破坏'); process.exit(1); }
+const data = dblock[1];
+try { JSON.parse(data); } catch (e) { console.error('✗ 内嵌数据不是合法 JSON：' + e.message); process.exit(1); }
+
+const cache = {};
+function el(id) {
+  return {
+    id, textContent: '', innerHTML: '', value: '', rows: [], dataset: {},
+    classList: {
+      _s: new Set(),
+      add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); },
+      toggle(c, f) { if (f === undefined) { this._s.has(c) ? this._s.delete(c) : this._s.add(c); } else { f ? this._s.add(c) : this._s.delete(c); } },
+      contains(c) { return this._s.has(c); }
+    },
+    appendChild() {}, addEventListener() {}, querySelectorAll() { return []; },
+    querySelector() { return null; }, getAttribute() { return null; }, setAttribute() {},
+    onclick: null, onchange: null, checked: false
+  };
+}
+const store = {};
+const sandbox = {
+  console, setTimeout, clearTimeout, Date, JSON, Math, Object, Array, String, Number,
+  parseInt, parseFloat, isNaN, RegExp, Error, Boolean,
+  document: {
+    getElementById(id) {
+      if (id === 'btm-data') return { textContent: data };
+      if (!cache[id]) cache[id] = el(id);
+      return cache[id];
+    },
+    querySelectorAll() { return []; }, querySelector() { return null; },
+    addEventListener() {}, createElement() { return el('x'); },
+    body: { appendChild() {}, removeChild() {} }
+  },
+  localStorage: { getItem(k) { return store[k] || null; }, setItem(k, v) { store[k] = v; } },
+  Blob: function () {}, URL: { createObjectURL() { return ''; } }
+};
+sandbox.window = sandbox;
+vm.createContext(sandbox);
+try { vm.runInContext(jsblock[1], sandbox, { filename: 'btm-view.js' }); }
+catch (e) { console.error('✗ 页面脚本执行失败：' + e.message); process.exit(1); }
+
+const S = sandbox.S, ITEMS = sandbox.ITEMS;
+let fail = 0;
+const count = (s, re) => (s.match(re) || []).length;
+const pass = (m) => console.log('  ✓ ' + m);
+const bad = (m, e) => { fail++; console.log('  ✗ ' + m + (e ? ' -> ' + e : '')); };
+
+console.log('条目 ' + ITEMS.length + '　全字段列 ' + sandbox.ALLCOLS.length);
+pass('初始加载与表格渲染');
+
+try { S.sortCol = 'identifier'; S.sortAsc = true; sandbox.renderTable(); pass('按列排序后重建'); }
+catch (e) { bad('排序', e.message); }
+// 筛选用数据里真实存在的片段，避免把断言绑死在某台机器的软件名上
+const qProbe = String(ITEMS[0].identifier_base || ITEMS[0].name || 'a').slice(0, 5);
+try { S.q = qProbe; sandbox.renderTable(); pass('关键字筛选'); }
+catch (e) { bad('关键字筛选', e.message); }
+try { S.q = ''; S.status = 'disallowed'; sandbox.renderTable(); pass('状态筛选'); }
+catch (e) { bad('状态筛选', e.message); }
+try { S.status = ''; S.cols = ['name']; sandbox.renderTable(); pass('单列渲染'); }
+catch (e) { bad('单列渲染', e.message); }
+S.cols = sandbox.ALLCOLS.slice();
+try { sandbox.renderColPanel(); pass('列选择面板'); }
+catch (e) { bad('列面板', e.message); }
+
+const stats = {};
+['parent', 'embedded', 'bundle', 'scope', 'vendor', 'config', 'exec', 'generation'].forEach(function (m) {
+  try {
+    S.treeMode = m; S.open = {}; S.treeCollapse = false;
+    sandbox.renderTree();
+    const out = cache['treewrap'].innerHTML;
+    if (!out) throw new Error('输出为空');
+    const nodes = count(out, /class="trow"/g), groups = count(out, /gnode/g);
+    stats[m] = { nodes, groups, html: out };
+    const items = nodes - groups;
+    if (items > ITEMS.length) throw new Error('条目节点 ' + items + ' 超过总数 ' + ITEMS.length + '（有重复挂载）');
+    pass('树 ' + m.padEnd(10) + ' 条目 ' + String(items).padStart(2) + '（≤' + ITEMS.length + '），分组 '
+      + String(groups).padStart(2) + '，嵌套层 ' + String(count(out, /class="tkids"/g)).padStart(2)
+      + '，备注 ' + count(out, /class="gnote"/g));
+  } catch (e) { bad('树 ' + m, e.message); }
+});
+
+/* ------------------------------------------------------------------
+ * 回归测试：折叠后必须还能展开（历史 bug：折叠正常、展开失效）
+ *
+ * 根因是原实现用 `row.parentNode.querySelector('.tkids')` 判断节点有没有子节点，
+ * 而折叠状态下 .tkids 根本不会被渲染，于是判断恒为假、再也展不开。
+ * 修法：节点把「有子节点」写进 data-kids 属性。
+ * 这里既校验标记契约，也真调一次 onclick 验证状态确实翻转。
+ * ------------------------------------------------------------------ */
+
+// 让 treewrap 的 querySelectorAll 能从刚渲染出的 HTML 里解析出行对象。
+// 同一份 innerHTML 必须返回同一批对象 —— renderTree 把 onclick 挂在这批对象上，
+// 若每次调用都新建对象，测试拿到的就是没挂 handler 的空壳。
+let _rowsHtml = null, _rowsCache = null;
+cache['treewrap'].querySelectorAll = function (sel) {
+  if (sel !== '.trow') return [];
+  if (this.innerHTML === _rowsHtml && _rowsCache) return _rowsCache;
+  const rows = [];
+  const tagRe = /<div class="trow"([^>]*)>/g;
+  let m;
+  while ((m = tagRe.exec(this.innerHTML))) {
+    const attrs = {};
+    const aRe = /([a-zA-Z-]+)="([^"]*)"/g;
+    let a;
+    while ((a = aRe.exec(m[1]))) attrs[a[1]] = a[2];
+    rows.push({
+      attrs,
+      getAttribute(n) { return Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null; },
+      parentNode: { querySelector() { return null; } },
+      onclick: null
+    });
+  }
+  _rowsHtml = this.innerHTML; _rowsCache = rows;
+  return rows;
+};
+
+// 非叶子节点的 caret 是 class="caret">，叶子是 class="caret leaf">（两者都含 "caret」，故必须带结尾的 > 或空格区分）
+const caretNonLeafRe = /class="caret">/g, caretLeafRe = /class="caret leaf">/g;
+
+try {
+  S.treeCollapse = true; S.open = {}; S.treeMode = 'parent'; sandbox.renderTree();
+  const out = cache['treewrap'].innerHTML;
+  const rows = count(out, /class="trow"/g);
+  const kidsBlocks = count(out, /class="tkids"/g);
+  const marked = count(out, /data-kids="1"/g);
+  const nonLeaf = count(out, caretNonLeafRe);
+
+  if (kidsBlocks !== 0) throw new Error('默认折叠状态下不该渲染 .tkids，实际有 ' + kidsBlocks + ' 个');
+  if (marked === 0) throw new Error('折叠状态下没有任何节点带 data-kids —— 将无法展开（正是原 bug）');
+  if (marked !== nonLeaf) throw new Error('带 data-kids 的节点 ' + marked + ' 个，不等于有子节点的行 ' + nonLeaf + ' 个（标记不完整）');
+
+  // 真调一次 onclick，验证折叠态下点击能展开
+  const target = cache['treewrap'].querySelectorAll('.trow').filter(r => r.getAttribute('data-kids') === '1' && !r.getAttribute('data-id'))[0];
+  if (!target) throw new Error('找不到可点击的父级节点');
+  const key = target.getAttribute('data-k');
+  target.onclick();
+  if (S.open[key] !== true) throw new Error('点击折叠态节点后 S.open 未变为 true（展开失败）');
+  let after = cache['treewrap'].innerHTML;
+  if (count(after, /class="tkids"/g) === 0) throw new Error('点击后仍无 .tkids，界面没有真的展开');
+
+  // 再点一次，验证能折回去（双向）
+  const again = cache['treewrap'].querySelectorAll('.trow').filter(r => r.getAttribute('data-k') === key)[0];
+  if (!again) throw new Error('重新渲染后找不到同一节点');
+  again.onclick();
+  if (S.open[key] !== false) throw new Error('再次点击后 S.open 未变为 false（折叠失败）');
+
+  pass('折叠/展开双向切换：' + rows + ' 行中 ' + marked + ' 行可展开，点击后状态与界面均正确翻转');
+} catch (e) { bad('折叠-展开回归测试', e.message); }
+
+try {
+  S.treeCollapse = false; S.open = {}; S.treeMode = 'parent'; sandbox.renderTree();
+  const out = cache['treewrap'].innerHTML;
+  const marked = count(out, /data-kids="1"/g);
+  const nonLeaf = count(out, caretNonLeafRe), leaves = count(out, caretLeafRe);
+  if (marked !== nonLeaf) throw new Error('展开态标记不一致：data-kids ' + marked + ' vs 有子节点的行 ' + nonLeaf);
+  if (nonLeaf + leaves !== count(out, /class="trow"/g)) throw new Error('caret 分类不完备：' + nonLeaf + '+' + leaves);
+  pass('展开态标记一致：' + nonLeaf + ' 个可折叠节点 / ' + leaves + ' 个叶子');
+} catch (e) { bad('展开态标记', e.message); }
+
+S.treeCollapse = false;
+try { for (let i = 0; i < ITEMS.length; i++) sandbox.openDetail(ITEMS[i]); pass('详情面板渲染全部 ' + ITEMS.length + ' 条'); }
+catch (e) { bad('详情面板', e.message); }
+try { sandbox.renderHelp(); pass('字段说明页'); }
+catch (e) { bad('字段说明页', e.message); }
+try { ['table', 'tree', 'help'].forEach(v => sandbox.setView(v)); pass('视图切换'); }
+catch (e) { bad('视图切换', e.message); }
+
+// 内容抽查：断言全部从当前数据推导，不绑定任何一台机器的软件清单
+if (stats['parent']) {
+  const p = stats['parent'].html;
+  const dev = ITEMS.filter(it => String(it.type_mechanism) === 'developer')[0];
+  if (p.indexOf('记录组 UID') < 0) bad('归属树缺记录组层级');
+  else if (dev && p.indexOf(String(dev.identifier)) < 0) bad('归属树缺开发者父节点');
+  else pass('归属树：含记录组层级与开发者父节点');
+}
+if (stats['embedded']) {
+  const byId = {};
+  ITEMS.forEach(it => { if (it.identifier && !byId[it.identifier]) byId[it.identifier] = it; });
+  let hasMismatch = false;
+  ITEMS.forEach(it => {
+    let l = it.embedded_item_identifiers || [];
+    if (Object.prototype.toString.call(l) !== '[object Array]') {
+      l = String(l).split('|').map(x => x.trim()).filter(Boolean);
+    }
+    l.forEach(e => {
+      const c = byId[e];
+      if (c && c.parent_identifier && c.parent_identifier !== it.identifier) hasMismatch = true;
+    });
+  });
+  const h = stats['embedded'].html;
+  if (!hasMismatch) pass('嵌入树：本次数据两向自洽，无需标注不一致');
+  else if (h.indexOf('与嵌入声明方不一致') < 0) bad('嵌入树没标出「自述父级不一致」');
+  else pass('嵌入树：标出了「自述父级与嵌入声明不一致」的条目');
+}
+
+/* ⑥⑦ 两棵位置树：必须真的按「配置 / 可执行」分开，并覆盖各自的类别 */
+(function () {
+  const cfg = stats['config'] && stats['config'].html;
+  const exe = stats['exec'] && stats['exec'].html;
+  if (!cfg || !exe) { bad('位置树缺失'); return; }
+
+  // ① 两棵树的数据源必须不同：配置树的类别取自 config_kind 列、可执行树取自 exec_scope 列。
+  //    「该出现哪些类别」由当前数据推导，因此换一台机器、换一份快照同样成立。
+  const kindSet = (col) => {
+    const s = new Set();
+    ITEMS.forEach(it => { const v = it[col]; if (v && v !== '(null)') s.add(String(v)); });
+    return Array.from(s);
+  };
+  const cfgKinds = kindSet('config_kind');
+  const exeKinds = kindSet('exec_scope');
+  const missCfg = cfgKinds.filter(k => cfg.indexOf(k) < 0);
+  const missExe = exeKinds.filter(k => exe.indexOf(k) < 0);
+  if (missCfg.length) bad('配置树缺类别：' + missCfg.join('、'));
+  else if (missExe.length) bad('可执行树缺类别：' + missExe.join('、'));
+  else pass('两棵位置树类别齐备（配置 ' + cfgKinds.length + ' 类 / 可执行 ' + exeKinds.length + ' 类，取自数据列）');
+
+  // ② 类别不得串台：配置树里不该出现只属于可执行的类别，反之亦然。
+  //    这是"两棵树确实建立在两个不同字段上"的硬证据。
+  const cfgOnly = ['系统守护进程配置', '全局代理配置', '用户代理配置', '应用包内嵌组件'];
+  const exeOnly = ['系统特权 Helper', '系统应用支持目录', '本地安装目录（/usr/local）', '应用包内（Contents/MacOS）'];
+  const leakInExe = cfgOnly.filter(k => exe.indexOf(k) >= 0);
+  const leakInCfg = exeOnly.filter(k => cfg.indexOf(k) >= 0);
+  if (leakInExe.length || leakInCfg.length) {
+    bad('两棵树类别串台：可执行树混入 ' + (leakInExe.join('、') || '无') + '；配置树混入 ' + (leakInCfg.join('、') || '无'));
+  } else {
+    pass('两棵树互不串台：配置类别只出现在⑥，可执行类别只出现在⑦');
+  }
+
+  // ③ 桶的归属必须与数据吻合：无配置路径 = URL 为 (null) 的条数，无独立可执行文件 = 没有 Executable Path 的条数
+  const nul = sandbox.isNullish;
+  const noUrl = ITEMS.filter(it => nul(it.url_path) || it.url_path === '(null)').length;
+  const noExec = ITEMS.filter(it => nul(it.executable_path) || it.executable_path === '(null)').length;
+  const bucket = (html, label) => {
+    const m = html.match(new RegExp('<span class="tlabel gnode">' + label + '</span><span class="gcount">(\\d+) 项'));
+    return m ? parseInt(m[1], 10) : -1;
+  };
+  const bCfg = bucket(cfg, '无配置路径'), bExe = bucket(exe, '无独立可执行文件');
+  if (bCfg !== noUrl) bad('⑥「无配置路径」桶 ' + bCfg + ' ≠ URL 为 (null) 的 ' + noUrl + ' 条');
+  else if (bExe !== noExec) bad('⑦「无独立可执行文件」桶 ' + bExe + ' ≠ 无 Executable Path 的 ' + noExec + ' 条');
+  else pass('桶归属吻合：⑥无配置路径 ' + bCfg + ' 条 / ⑦无独立可执行文件 ' + bExe + ' 条（各自有落点的 '
+    + (ITEMS.length - bCfg) + ' 与 ' + (ITEMS.length - bExe) + ' 条）');
+})();
+
+console.log(fail === 0 ? '\n全部通过' : '\n失败 ' + fail + ' 项');
+process.exit(fail === 0 ? 0 : 1);

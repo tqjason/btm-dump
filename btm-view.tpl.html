@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>macOS 后台项清单 (BTM) — 全字段 · 关系树</title>
+<style>
+:root{
+  --bg:#0e1116; --panel:#161b23; --panel2:#1b2129; --line:#2a3340; --line2:#3a4553;
+  --txt:#e8edf4; --dim:#9aa7b8; --dim2:#6f7d90;
+  --on:#3ddc97; --off:#7a8698; --warn:#ff8a3d; --danger:#ff5f6d; --accent:#5aa9ff; --purple:#b18cff;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;
+  font-size:13px;display:flex;flex-direction:column}
+header{flex:0 0 auto;background:var(--bg);border-bottom:1px solid var(--line);padding:14px 18px 0;z-index:20}
+.row1{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.2px}
+h1 .badge{font-size:10.5px;font-weight:600;color:var(--accent);border:1px solid var(--accent);
+  border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:2px}
+.sub{color:var(--dim);font-size:12px;margin-top:4px}
+.stat{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 9px;
+  font-size:11.5px;color:var(--dim);white-space:nowrap}
+.chip b{color:var(--txt);font-weight:600}
+nav.tabs{display:flex;gap:2px;margin-top:12px}
+nav.tabs button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--dim);
+  padding:7px 13px;font-size:13px;cursor:pointer;border-radius:6px 6px 0 0}
+nav.tabs button:hover{color:var(--txt);background:var(--panel)}
+nav.tabs button.on{color:var(--txt);border-bottom-color:var(--accent);font-weight:600}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:9px 0 10px}
+input[type=search],select{background:var(--panel);border:1px solid var(--line);color:var(--txt);
+  padding:5px 9px;border-radius:7px;font-size:12.5px;outline:none;font-family:inherit}
+input[type=search]{min-width:230px}
+input[type=search]:focus,select:focus{border-color:var(--accent)}
+button{background:var(--panel);border:1px solid var(--line);color:var(--dim);padding:5px 10px;
+  border-radius:7px;font-size:12.5px;cursor:pointer;font-family:inherit}
+button:hover{color:var(--txt);border-color:var(--line2)}
+button.on{color:var(--txt);border-color:var(--accent);background:#1a2432}
+label.ck{display:inline-flex;align-items:center;gap:5px;color:var(--dim);font-size:12.5px;cursor:pointer;
+  background:var(--panel);border:1px solid var(--line);padding:5px 9px;border-radius:7px}
+label.ck input{accent-color:var(--accent)}
+.hint{color:var(--dim2);font-size:12px}
+.sep{width:1px;height:20px;background:var(--line);margin:0 2px}
+
+/* 列选择面板 */
+.colpanel{flex:0 0 auto;background:var(--panel2);border-bottom:1px solid var(--line);
+  padding:12px 18px;max-height:44vh;overflow:auto;z-index:19}
+.colpanel .presets{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.colpanel .grp{margin-bottom:11px}
+.colpanel .grp h4{margin:0 0 6px;font-size:11.5px;color:var(--accent);font-weight:600;letter-spacing:.5px}
+.colpanel .items{display:flex;flex-wrap:wrap;gap:5px}
+.colpanel label{display:inline-flex;align-items:center;gap:5px;background:var(--panel);
+  border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:12px;color:var(--dim);cursor:pointer}
+.colpanel label:hover{border-color:var(--line2);color:var(--txt)}
+.colpanel label.on{color:var(--txt);border-color:var(--accent)}
+.colpanel label em{font-style:normal;color:var(--dim2);font-family:var(--mono);font-size:10.5px}
+.colpanel input{accent-color:var(--accent)}
+
+/* 主体 */
+main{flex:1 1 auto;overflow:auto;min-height:0}
+table{border-collapse:separate;border-spacing:0;font-size:12.5px}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;
+  white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis}
+thead th{position:sticky;top:0;background:var(--panel);color:var(--dim);font-weight:600;font-size:11.5px;
+  cursor:pointer;user-select:none;border-bottom:1px solid var(--line2);z-index:3}
+thead th:hover{color:var(--txt)}
+thead th .zh{display:block}
+thead th .en{display:block;font-family:var(--mono);font-size:10px;color:var(--dim2);font-weight:400}
+thead th.sorted{color:var(--accent)}
+thead th.sorted::after{content:" ▲";font-size:9px}
+thead th.sorted.desc::after{content:" ▼"}
+td.pin,th.pin{position:sticky;left:0;background:var(--bg);z-index:2;border-right:1px solid var(--line2)}
+thead th.pin{z-index:4;background:var(--panel)}
+tbody tr:hover td{background:#181e27}
+tbody tr:hover td.pin{background:#181e27}
+tbody tr.sel td{background:#1b2a3d}
+tbody tr.sel td.pin{background:#1b2a3d}
+tbody tr{cursor:pointer}
+td.on{color:var(--on)} td.off{color:var(--off)} td.warn{color:var(--warn);font-weight:600}
+td.bad{color:var(--danger);font-weight:600}
+td.uid{color:var(--accent);font-weight:600}
+td.mono{font-family:var(--mono);font-size:11.5px}
+td.dim{color:var(--dim2)}
+
+/* 关系树 */
+#treewrap{padding:14px 18px 40px}
+.tnode{margin:0}
+.trow{display:flex;align-items:center;gap:7px;padding:3px 8px;border-radius:6px;cursor:pointer;
+  line-height:1.6;white-space:nowrap}
+.trow:hover{background:var(--panel)}
+.trow.sel{background:#1b2a3d}
+.trow .caret{width:12px;color:var(--dim2);flex:0 0 auto;font-size:10px;text-align:center}
+.trow .caret.leaf{visibility:hidden}
+.tlabel{font-weight:600;color:var(--txt)}
+.tid{font-family:var(--mono);font-size:11px;color:var(--dim2);overflow:hidden;text-overflow:ellipsis}
+.tkids{margin-left:15px;border-left:1px solid var(--line);padding-left:6px}
+.b{font-style:normal;font-size:10px;padding:1px 5px;border-radius:4px;border:1px solid var(--line2);
+  color:var(--dim);white-space:nowrap}
+.b.mech{border-color:var(--purple);color:var(--purple)}
+.b.uid{border-color:var(--accent);color:var(--accent)}
+.b.on{border-color:var(--on);color:var(--on)}
+.b.off{border-color:var(--line2);color:var(--dim2)}
+.b.warn{border-color:var(--warn);color:var(--warn);font-weight:600}
+.b.dup{border-color:var(--danger);color:var(--danger)}
+.b.gen{border-color:var(--line2);color:var(--dim2)}
+.gnode{font-weight:600;color:var(--txt)}
+.gcount{font-size:10.5px;color:var(--dim2);font-weight:400}
+.gnote{font-size:11px;color:var(--dim2);font-style:italic}
+
+/* 详情 */
+aside#detail{position:fixed;right:0;top:0;bottom:0;width:min(560px,52vw);background:var(--panel2);
+  border-left:1px solid var(--line2);overflow:auto;z-index:40;box-shadow:-18px 0 40px rgba(0,0,0,.45);
+  padding:16px 18px 40px}
+aside#detail h3{margin:0 0 3px;font-size:14px}
+aside#detail .close{position:absolute;right:12px;top:12px}
+aside#detail .gtitle{margin:14px 0 6px;font-size:11.5px;color:var(--accent);font-weight:600;letter-spacing:.5px}
+aside#detail table{width:100%;table-layout:fixed}
+aside#detail td{padding:4px 6px;white-space:normal;word-break:break-all;max-width:none;font-size:12px}
+aside#detail td:first-child{width:38%;color:var(--dim)}
+aside#detail code{font-family:var(--mono);font-size:11.5px}
+
+/* 字段说明 */
+#help{padding:18px 22px 60px;max-width:900px;line-height:1.75}
+#help h2{font-size:15px;margin:22px 0 8px;color:var(--txt);border-left:3px solid var(--accent);padding-left:9px}
+#help h2:first-child{margin-top:0}
+#help p,#help li{color:var(--dim);font-size:13px}
+#help code{font-family:var(--mono);font-size:12px;background:var(--panel);padding:1px 5px;border-radius:4px;color:var(--txt)}
+#help table{margin:8px 0 14px}
+#help th,#help td{white-space:normal;font-size:12.5px;max-width:420px}
+#help th{color:var(--accent);font-weight:600}
+#help .warnbox{background:#2a1d12;border:1px solid var(--warn);border-radius:8px;padding:10px 13px;margin:10px 0}
+#help .warnbox p{color:#ffd7b0;margin:4px 0}
+.hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="row1">
+    <div>
+      <h1>macOS 后台项清单 <span class="badge">BTM</span></h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="stat" id="stat"></div>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button data-v="table" class="on">表格视图</button>
+    <button data-v="tree">关系树</button>
+    <button data-v="help">字段说明</button>
+  </nav>
+
+  <div class="tools" id="toolsTable">
+    <input type="search" id="q" placeholder="筛选：名称 / 标识符 / 路径 / 开发者 / UUID…">
+    <select id="fStatus">
+      <option value="">全部状态</option>
+      <option value="enabled">仅已启用</option>
+      <option value="disabled">仅已停用</option>
+      <option value="disallowed">仅已禁止</option>
+      <option value="notallowed">仅未禁止</option>
+      <option value="dup">仅重复注册项</option>
+      <option value="noparent">仅无父记录</option>
+      <option value="nosign">仅无签名信息</option>
+    </select>
+    <select id="fUid"><option value="">全部记录组</option></select>
+    <select id="fMech"><option value="">全部机制</option></select>
+    <div class="sep"></div>
+    <button id="btnCols">选择列 <span class="hint" id="colNum"></span></button>
+    <button id="btnCsv">导出当前视图 CSV</button>
+    <button id="btnReset">重置视图</button>
+    <span class="hint" id="orderHint"></span>
+    <span class="chip" id="count"></span>
+  </div>
+
+  <div class="tools hidden" id="toolsTree">
+    <span class="hint">关系：</span>
+    <select id="treeMode"></select>
+    <div class="sep"></div>
+    <label class="ck"><input type="checkbox" id="treeOnlyOn"> 只看已启用</label>
+    <label class="ck"><input type="checkbox" id="treeCollapse"> 默认折叠</label>
+    <button id="btnExpandAll">全部展开</button>
+    <button id="btnCollapseAll">全部折叠</button>
+    <span class="chip" id="countTree"></span>
+  </div>
+</header>
+
+<div class="colpanel hidden" id="colpanel"></div>
+
+<main id="tablewrap"></main>
+<div id="treewrap" class="hidden"></div>
+<div id="help" class="hidden"></div>
+
+<aside id="detail" class="hidden"></aside>
+
+<script id="btm-data" type="application/json">
+<!--BTM_DATA-->
+</script>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ 数据 */
+var DATA = JSON.parse(document.getElementById('btm-data').textContent);
+var ALLCOLS = DATA.columns || [];
+var META = DATA.column_meta || {};
+var LISTC = DATA.list_columns || [];
+var BOOLC = DATA.bool_columns || [];
+var GROUPS = DATA.column_groups || [];
+var ITEMS = DATA.items || [];
+var SECTIONS = DATA.sections || [];
+
+var LSKEY = 'btm.cols.v2';
+
+/* ------------------------------------------------------------------ 状态 */
+var S = {
+  view: 'table',
+  cols: [],
+  q: '',
+  status: '',
+  uid: '',
+  mech: '',
+  sortCol: null,
+  sortAsc: true,
+  treeMode: 'parent',
+  treeOnlyOn: false,
+  treeCollapse: false,
+  open: {},          // 树的展开状态
+  sel: null          // 选中的条目引用
+};
+
+/* ------------------------------------------------------------------ 工具 */
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function isNullish(v){ return v === undefined || v === null || v === '' || v === '(null)'; }
+function colZh(c){ return (META[c] && META[c].zh) || c; }
+function colGrp(c){ return (META[c] && META[c].grp) || '其它'; }
+function nid(it){ return it.uid + '#' + it.seq + '#' + it.uuid; }
+function val(it, c){ var v = it[c]; return (v === undefined || v === null) ? '' : String(v); }
+
+function activeMechs(){
+  var seen = {}, out = [];
+  ITEMS.forEach(function(it){ var m = it.type_mechanism; if(m && !seen[m]){ seen[m]=1; out.push(m); } });
+  out.sort();
+  return out;
+}
+
+/* 搜索索引 */
+ITEMS.forEach(function(it){
+  var buf = [];
+  for (var i = 0; i < ALLCOLS.length; i++){
+    var v = it[ALLCOLS[i]];
+    if (v === undefined || v === null) continue;
+    if (Object.prototype.toString.call(v) === '[object Array]') buf.push(v.join(' '));
+    else buf.push(String(v));
+  }
+  it._s = buf.join(' ').toLowerCase();
+});
+
+/* ------------------------------------------------------------------ 列预设 */
+var PRESETS = {
+  '全字段': ALLCOLS.slice(),
+  '常用': ['uid','seq','name','identifier_base','type_mechanism','enabled','allowed','developer_name','team_identifier','url_path','parent_identifier','generation','dup_group'],
+  '身份与状态': ['uid','uuid','name','developer_name','team_identifier','type_raw','type_mechanism','enabled','allowed','visible','notified','identifier_scope_zh','generation'],
+  '关系与层级': ['uid','name','identifier','parent_identifier','parent_kind','child_count','depth','node_path','bundle_key','assoc_bundle_ids','embedded_item_identifiers'],
+  '配置与落点': ['uid','name','identifier_base','type_mechanism','url','url_path','config_kind','config_dir','executable_path','exec_scope','exec_dir'],
+  '嵌套与重复': ['uid','seq','name','identifier_base','type_mechanism','dup_group','match_key','embedded_count','assoc_count','generation','source_line'],
+  '极简': ['uid','name','identifier_base','type_mechanism','enabled']
+};
+
+function loadCols(){
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(LSKEY) || 'null'); } catch(e){ saved = null; }
+  var list = (saved && saved.length) ? saved : ALLCOLS.slice();
+  var ok = {};
+  ALLCOLS.forEach(function(c){ ok[c] = 1; });
+  var out = [];
+  list.forEach(function(c){ if (ok[c]) { ok[c] = 0; out.push(c); } });
+  // 新版本新增的列，自动补到后面
+  ALLCOLS.forEach(function(c){ if (ok[c]) out.push(c); });
+  return out.length ? out : ALLCOLS.slice();
+}
+function saveCols(){
+  try { localStorage.setItem(LSKEY, JSON.stringify(S.cols)); } catch(e){}
+}
+
+/* ------------------------------------------------------------------ 筛选 */
+function filtered(){
+  var q = S.q.trim().toLowerCase();
+  return ITEMS.filter(function(it){
+    if (q && it._s.indexOf(q) === -1) return false;
+    if (S.uid && String(it.uid) !== S.uid) return false;
+    if (S.mech && it.type_mechanism !== S.mech) return false;
+    switch (S.status){
+      case 'enabled':    if (it.enabled !== true) return false; break;
+      case 'disabled':   if (it.enabled === true) return false; break;
+      case 'disallowed': if (it.allowed !== false) return false; break;
+      case 'notallowed': if (it.allowed === false) return false; break;
+      case 'dup':        if (!it.dup_group) return false; break;
+      case 'noparent':   if (!isNullish(it.parent_identifier)) return false; break;
+      case 'nosign':     if (!isNullish(it.developer_name) || !isNullish(it.team_identifier)) return false; break;
+    }
+    return true;
+  });
+}
+
+function sorted(rows){
+  if (!S.sortCol) return rows.slice();
+  var c = S.sortCol;
+  var arr = rows.slice();
+  arr.sort(function(a, b){
+    var x = a[c], y = b[c];
+    var na = parseFloat(x), nb = parseFloat(y);
+    var r;
+    if (!isNaN(na) && !isNaN(nb) && String(na) === String(x).trim() && String(nb) === String(y).trim())
+      r = na - nb;
+    else
+      r = String(x == null ? '' : x).localeCompare(String(y == null ? '' : y), 'zh');
+    if (r === 0) r = String(a.uuid).localeCompare(String(b.uuid));
+    return S.sortAsc ? r : -r;
+  });
+  return arr;
+}
+
+/* ------------------------------------------------------------------ 表格 */
+function renderTable(){
+  if (!S.cols.length) S.cols = ALLCOLS.slice();
+  var rows = sorted(filtered());
+  var h = ['<table id="t"><thead><tr>'];
+  S.cols.forEach(function(c, i){
+    var cls = (i === 0 ? 'pin' : '') + (S.sortCol === c ? (' sorted' + (S.sortAsc ? '' : ' desc')) : '');
+    h.push('<th class="' + cls + '" data-c="' + esc(c) + '" title="' + esc(c) + '">'
+      + '<span class="zh">' + esc(colZh(c)) + '</span>'
+      + '<span class="en">' + esc(c) + '</span></th>');
+  });
+  h.push('</tr></thead><tbody id="tb"></tbody></table>');
+  document.getElementById('tablewrap').innerHTML = h.join('');
+
+  var tb = document.getElementById('tb');
+  var buf = [];
+  rows.forEach(function(it){
+    buf.push('<tr data-id="' + esc(nid(it)) + '"' + (S.sel === it ? ' class="sel"' : '') + '>');
+    S.cols.forEach(function(c, i){
+      var v = it[c], cls = [];
+      if (i === 0) cls.push('pin');
+      if (BOOLC.indexOf(c) >= 0) cls.push(v === true ? 'on' : 'off');
+      if (c === 'allowed' && v === false) cls.push('bad');
+      if (c === 'hidden' && v === true) cls.push('warn');
+      if (c === 'uid') cls.push('uid');
+      if (c === 'enabled') cls.push(v === true ? 'on' : 'off');
+      if (c === 'dup_group' && v) cls.push('bad');
+      if (c === 'uuid' || c === 'group_uuid' || c === 'match_key' || c === 'url' || c === 'executable_path') cls.push('mono');
+      if (c === 'developer_name' || c === 'team_identifier' || c === 'type_hex' || c === 'flags_hex' || c === 'disposition_hex' || c === 'generation') cls.push('dim');
+      var txt;
+      if (Object.prototype.toString.call(v) === '[object Array]') txt = v.join(' | ');
+      else if (v === true) txt = 'TRUE';
+      else if (v === false) txt = 'FALSE';
+      else txt = (v === undefined || v === null) ? '' : String(v);
+      buf.push('<td class="' + cls.join(' ') + '" title="' + esc(txt) + '">' + esc(txt) + '</td>');
+    });
+    buf.push('</tr>');
+  });
+  tb.innerHTML = buf.join('');
+
+  Array.prototype.forEach.call(document.querySelectorAll('#t thead th'), function(th){
+    th.onclick = function(){
+      var c = th.getAttribute('data-c');
+      if (S.sortCol === c) S.sortAsc = !S.sortAsc;
+      else { S.sortCol = c; S.sortAsc = true; }
+      renderTable();
+    };
+  });
+  Array.prototype.forEach.call(tb.rows, function(tr){
+    tr.onclick = function(){
+      var id = tr.getAttribute('data-id');
+      for (var i = 0; i < ITEMS.length; i++) if (nid(ITEMS[i]) === id) { openDetail(ITEMS[i]); break; }
+    };
+  });
+
+  document.getElementById('count').innerHTML = '显示 <b>' + rows.length + '</b> / ' + ITEMS.length + ' 条　·　<b>'
+    + S.cols.length + '</b> / ' + ALLCOLS.length + ' 列';
+  document.getElementById('colNum').textContent = S.cols.length + '/' + ALLCOLS.length;
+  document.getElementById('orderHint').innerHTML = S.sortCol
+    ? '表格排序：<b>' + esc(colZh(S.sortCol)) + '</b> ' + (S.sortAsc ? '升序' : '降序')
+    : '表格顺序：文件内既定顺序（' + esc(DATA.sort_preset) + '）';
+}
+
+/* ------------------------------------------------------------------ 列选择面板 */
+function renderColPanel(){
+  var p = document.getElementById('colpanel');
+  var h = ['<div class="presets"><span class="hint">预设：</span>'];
+  Object.keys(PRESETS).forEach(function(k){
+    h.push('<button data-preset="' + esc(k) + '">' + esc(k) + '</button>');
+  });
+  h.push('<div class="sep"></div>'
+    + '<button data-preset="__all">全选</button>'
+    + '<button data-preset="__none">全不选</button>'
+    + '<button data-preset="__reset">恢复默认（全字段）</button>'
+    + '<button data-preset="__close">收起面板</button>'
+    + '<span class="hint">勾选会即时生效，并记在本机浏览器里，下次打开同一套列。</span></div>');
+
+  GROUPS.forEach(function(g){
+    var cols = ALLCOLS.filter(function(c){ return colGrp(c) === g; });
+    if (!cols.length) return;
+    h.push('<div class="grp"><h4>' + esc(g) + '</h4><div class="items">');
+    cols.forEach(function(c){
+      var on = S.cols.indexOf(c) >= 0;
+      h.push('<label class="' + (on ? 'on' : '') + '" title="' + esc(c) + '">'
+        + '<input type="checkbox" data-col="' + esc(c) + '"' + (on ? ' checked' : '') + '>'
+        + esc(colZh(c)) + ' <em>' + esc(c) + '</em></label>');
+    });
+    h.push('</div></div>');
+  });
+  p.innerHTML = h.join('');
+
+  Array.prototype.forEach.call(p.querySelectorAll('input[data-col]'), function(cb){
+    cb.onchange = function(){
+      var c = cb.getAttribute('data-col');
+      if (cb.checked) { if (S.cols.indexOf(c) < 0) S.cols.push(c); }
+      else S.cols = S.cols.filter(function(x){ return x !== c; });
+      // 保持 ALLCOLS 的固有顺序
+      S.cols.sort(function(a, b){ return ALLCOLS.indexOf(a) - ALLCOLS.indexOf(b); });
+      saveCols(); renderColPanel(); renderTable();
+    };
+  });
+  Array.prototype.forEach.call(p.querySelectorAll('button[data-preset]'), function(btn){
+    btn.onclick = function(){
+      var k = btn.getAttribute('data-preset');
+      if (k === '__close') { p.classList.add('hidden'); return; }
+      if (k === '__all') S.cols = ALLCOLS.slice();
+      else if (k === '__none') S.cols = [];
+      else if (k === '__reset') S.cols = ALLCOLS.slice();
+      else {
+        var want = PRESETS[k] || [];
+        S.cols = ALLCOLS.filter(function(c){ return want.indexOf(c) >= 0; });
+        if (!S.cols.length) S.cols = ALLCOLS.slice();
+      }
+      saveCols(); renderColPanel(); renderTable();
+    };
+  });
+}
+
+/* ------------------------------------------------------------------ 关系树 */
+var TREEMODES = [
+  { k:'parent',     t:'① 归属树（父标识符 Parent Identifier）' },
+  { k:'embedded',   t:'② 嵌入树（Embedded Item Identifiers）' },
+  { k:'bundle',     t:'③ Bundle 归组树（Bundle ID / Assoc. Bundle IDs）' },
+  { k:'scope',      t:'④ 作用域树（记录组 UID → 持久化机制）' },
+  { k:'vendor',     t:'⑤ 签名主体树（Developer Name）' },
+  { k:'config',     t:'⑥ 配置来源树（URL → 配置放在哪）' },
+  { k:'exec',       t:'⑦ 可执行落点树（Executable Path → 可执行文件落在哪）' },
+  { k:'generation', t:'⑧ 代数分组（Generation，非层级）' }
+];
+var TREEDESC = {
+  parent: '把每条记录的「父标识符」指向的那条记录作为父节点。父记录通常是 Type 为 developer 的开发者记录（如 Example Corp、Acme Inc），也可能是某个应用条目（如 2.com.example.toolbox）。同一条目只会挂在第一个匹配的父节点下；找不到父记录时作为顶层节点，并标注「跨组父」。',
+  embedded: '按记录自身列出的「嵌入项标识符」建立父子关系：这条记录的 Embedded Item Identifiers 里写了谁，谁就是它的子节点。它与①方向相反、集合也不完全重合 —— 两者差异本身就是线索。',
+  bundle: '按 Bundle ID 归堆：优先用记录自己的 Bundle Identifier，没有就退回到标识符基名或 Assoc. Bundle IDs 的第一个值。同一 Bundle 的应用条目、代理、守护进程会聚到一起。',
+  scope: '还原 dump 的三层结构：记录组（UID -2 / 0 / 501）→ 持久化机制（daemon / agent / login item / app / 插件 / developer）→ 条目。',
+  vendor: '按代码签名证书里的 Developer Name 归堆，一眼看出「哪些东西是同一家签的」。没有签名信息的归入「（无签名信息）」。',
+  config: '回答「配置放在哪里」。一级 = 注册位置类别（系统守护进程配置 / 全局代理配置 / 用户代理配置 / 系统内置 / 应用包自身 / 应用包内嵌组件），二级 = 该类别下的所属目录，三级 = 条目。依据字段是 URL —— 它指向的是 plist 或注册载体本身，不是可执行文件。',
+  exec: '回答「可执行文件落在哪里」，与⑥是两件事。一级 = 落点性质（系统特权 Helper / 系统应用支持目录 / 系统库其它位置 / 应用包内 / 本地安装目录 / 用户主目录 / 相对路径），二级 = 所属目录。依据字段是 Executable Path。全部记录都会出现，但只有真正带独立可执行文件的那部分会落到具体目录下，其余集中归入末尾的「无独立可执行文件」桶。',
+  generation: '把 Generation 相同的一批记录放在一个桶里。注意：这只是分组，不是层级关系 —— Generation 不代表父子代际，详见「字段说明」。'
+};
+
+function treeItems(){
+  return ITEMS.filter(function(it){ return !S.treeOnlyOn || it.enabled === true; });
+}
+
+function groupByUid(items){
+  var map = {}, order = [];
+  SECTIONS.forEach(function(s){ map[s.uid] = { uid:s.uid, meta:s, items:[] }; order.push(s.uid); });
+  items.forEach(function(it){
+    if (!map[it.uid]) { map[it.uid] = { uid:it.uid, meta:null, items:[] }; order.push(it.uid); }
+    map[it.uid].items.push(it);
+  });
+  return order.map(function(u){ return map[u]; }).filter(function(g){ return g.items.length; });
+}
+
+function byIdentMap(items){
+  var m = {};
+  items.forEach(function(it){
+    var k = it.identifier;
+    if (isNullish(k)) k = '__' + nid(it);      // 无标识符的单独成键
+    (m[k] = m[k] || []).push(it);
+  });
+  return m;
+}
+
+function toList(v){
+  if (v === undefined || v === null || v === '') return [];
+  if (Object.prototype.toString.call(v) === '[object Array]') return v;
+  return String(v).split('|').map(function(x){ return x.trim(); }).filter(Boolean);
+}
+
+function uidMeta(u){
+  for (var i = 0; i < SECTIONS.length; i++)
+    if (String(SECTIONS[i].uid) === String(u)) return SECTIONS[i];
+  return null;
+}
+function uidGroupLabel(u){
+  var meta = uidMeta(u);
+  return '记录组 UID ' + u + '　' + (meta ? meta.group_uuid : '');
+}
+function uidGroupNote(u){
+  var meta = uidMeta(u);
+  return meta ? ('ServiceManagement migrated=' + meta.sm_migrated + '　LaunchServices registered=' + meta.ls_registered) : '';
+}
+
+/* 递归建节点。带祖先集合与深度上限：万一出现循环引用，截断而不是递归到爆。 */
+function mkNode(it, kids, noteOf, anc, depth){
+  anc = anc || {};
+  depth = depth || 0;
+  var k0 = nid(it);
+  var ch = [], cyc = 0;
+  var list = kids[k0] || [];
+  if (depth < 12) {
+    list.forEach(function(k){
+      var kk = nid(k);
+      if (anc[kk]) { cyc++; return; }
+      var a2 = {};
+      for (var x in anc) a2[x] = 1;
+      a2[k0] = 1;
+      ch.push(mkNode(k, kids, noteOf, a2, depth + 1));
+    });
+  } else {
+    cyc = list.length;
+  }
+  var note = (noteOf && noteOf[k0]) || '';
+  if (cyc) note = note ? (note + '；' + cyc + ' 个子项因循环引用被截断') : (cyc + ' 个子项因循环引用被截断');
+  return { type:'item', it:it, note:note, children: ch };
+}
+
+/* 顶层节点按记录组（UID）包一层，保持与 dump 的分组一致 */
+function wrapByUid(roots, kids, noteOf){
+  var order = [], map = {};
+  SECTIONS.forEach(function(s){ map[String(s.uid)] = []; order.push(String(s.uid)); });
+  roots.forEach(function(it){
+    var u = String(it.uid);
+    if (!map[u]) { map[u] = []; order.push(u); }
+    map[u].push(it);
+  });
+  return order.filter(function(u){ return map[u] && map[u].length; }).map(function(u){
+    return {
+      type:'group',
+      label: uidGroupLabel(u),
+      note: uidGroupNote(u),
+      count: map[u].length,
+      children: map[u].map(function(it){ return mkNode(it, kids, noteOf); })
+    };
+  });
+}
+
+/* ① 归属树：按 Parent Identifier */
+function buildParentTree(items){
+  var byId = byIdentMap(items);
+  var kids = {}, noteOf = {}, roots = [];
+  items.forEach(function(it){
+    var pid = it.parent_identifier;
+    if (!isNullish(pid) && byId[pid] && byId[pid][0] !== it) {
+      var pk = nid(byId[pid][0]);
+      (kids[pk] = kids[pk] || []).push(it);
+    } else {
+      if (!isNullish(pid) && !byId[pid]) noteOf[nid(it)] = '父记录未登记：' + pid;
+      roots.push(it);
+    }
+  });
+  return wrapByUid(roots, kids, noteOf);
+}
+
+/* ② 嵌入树：按 Embedded Item Identifiers
+   同一条目只挂在「第一个认领它的记录」下，其余认领者记为备注；
+   目标自述的父级与认领方不一致时也标注出来 —— 这个不一致本身就是线索。 */
+function buildEmbedTree(items){
+  var byId = byIdentMap(items);
+  var kids = {}, parentOf = {}, noteOf = {}, extra = {}, roots = [];
+  items.forEach(function(it){
+    toList(it.embedded_item_identifiers).forEach(function(eid){
+      var t = byId[eid] && byId[eid][0];
+      if (!t || t === it) return;
+      var tk = nid(t);
+      if (parentOf[tk]) { extra[tk] = (extra[tk] || 0) + 1; return; }
+      parentOf[tk] = nid(it);
+      (kids[nid(it)] = kids[nid(it)] || []).push(t);
+    });
+  });
+  var claimerById = {};
+  items.forEach(function(it){ claimerById[nid(it)] = it; });
+  items.forEach(function(it){
+    var k = nid(it), notes = [];
+    if (extra[k]) notes.push('另被 ' + extra[k] + ' 条记录声明为嵌入项');
+    if (parentOf[k]){
+      var claimer = claimerById[parentOf[k]];
+      var tp = it.parent_identifier;
+      if (claimer && !isNullish(tp) && claimer.identifier !== tp){
+        var owner = byId[tp] && byId[tp][0];
+        var ownerLabel = owner ? (isNullish(owner.name) ? owner.identifier_base : owner.name) : tp;
+        notes.push('自述父级 ' + ownerLabel + '，与嵌入声明方不一致');
+      }
+    }
+    if (notes.length) noteOf[k] = notes.join('；');
+    if (!parentOf[k]) roots.push(it);
+  });
+  return wrapByUid(roots, kids, noteOf);
+}
+
+function buildGroupTree(groups){
+  return groups.map(function(g){
+    return {
+      type:'group', label:g.label, note:g.note || '', count:g.items.length,
+      children: g.items.map(function(it){ return { type:'item', it:it, note:'', children:[] }; })
+    };
+  });
+}
+
+function buildBundleTree(items){
+  var order = [], map = {};
+  items.forEach(function(it){
+    var k = isNullish(it.bundle_key) ? '（无 Bundle ID）' : it.bundle_key;
+    if (!map[k]) { map[k] = []; order.push(k); }
+    map[k].push(it);
+  });
+  order.sort(function(a, b){
+    if (a === '（无 Bundle ID）') return 1;
+    if (b === '（无 Bundle ID）') return -1;
+    return a.localeCompare(b);
+  });
+  return buildGroupTree(order.map(function(k){ return { label:k, items:map[k] }; }));
+}
+
+function buildScopeTree(items){
+  var res = [];
+  groupByUid(items).forEach(function(u){
+    var mechs = {}, morder = [];
+    u.items.forEach(function(it){
+      var m = it.type_mechanism || '(未知机制)';
+      if (!mechs[m]) { mechs[m] = []; morder.push(m); }
+      mechs[m].push(it);
+    });
+    morder.sort();
+    res.push({
+      type:'group',
+      label: uidGroupLabel(u.uid),
+      note: uidGroupNote(u.uid),
+      count: u.items.length,
+      children: morder.map(function(m){
+        return { type:'group', label:m, count: mechs[m].length,
+                 children: mechs[m].map(function(it){ return { type:'item', it:it, note:'', children:[] }; }) };
+      })
+    });
+  });
+  return res;
+}
+
+function buildVendorTree(items){
+  var order = [], map = {};
+  items.forEach(function(it){
+    var k = isNullish(it.developer_name) ? '（无签名信息）' : it.developer_name;
+    if (!map[k]) { map[k] = []; order.push(k); }
+    map[k].push(it);
+  });
+  order.sort(function(a, b){
+    if (a === '（无签名信息）') return 1;
+    if (b === '（无签名信息）') return -1;
+    return a.localeCompare(b);
+  });
+  return buildGroupTree(order.map(function(k){ return { label:k, items:map[k] }; }));
+}
+
+/* ⑥⑦ 两棵「位置树」共用骨架：一级 = 类别，二级 = 所属目录，三级 = 条目。
+ *
+ * 为什么必须拆成两棵：URL 与 Executable Path 是两个不同的问题 ——
+ * 「这份配置（plist / bundle）注册在哪里」 vs 「真正被执行的程序落在哪里」。
+ * 有的记录只有 URL、有的只有 Executable Path、有的两者都有，集合重叠但不相等；
+ * 把两者混进一棵树，就会出现「有的节点是配置、有的是可执行文件」的混淆。
+ * 类别与目录不是在这里猜的，而是 extract 阶段算好的 config_kind/config_dir、
+ * exec_scope/exec_dir 四列 —— 表格里能看到同样的值，两处口径不会漂移。 */
+var KIND_ORDER = {
+  config: ['系统守护进程配置','全局代理配置','用户代理配置','系统内置配置',
+           '应用包自身','应用包内嵌组件','其它绝对路径','其它相对路径','无配置路径'],
+  exec:   ['系统特权 Helper','系统应用支持目录','系统库其它位置','系统内置',
+           '应用包内（Contents/MacOS）','应用包内（其它）','本地安装目录（/usr/local）',
+           '用户主目录（用户可写）','相对路径','其它绝对路径','无独立可执行文件']
+};
+var KIND_NOTE = {
+  '系统守护进程配置': '/Library/LaunchDaemons —— 以 root 运行的守护进程配置',
+  '全局代理配置': '/Library/LaunchAgents —— 对所有用户生效的代理配置',
+  '用户代理配置': '~/Library/LaunchAgents —— 只对当前用户生效的代理配置',
+  '系统内置配置': '/System/Library 下的系统自带配置',
+  '应用包自身': '注册载体就是 .app 包本身（应用把自己注册为登录项）',
+  '应用包内嵌组件': '相对路径，落在所属应用包的 Contents/ 里面 —— 登录项 helper / QuickLook 扩展 / Spotlight 导入器',
+  '其它绝对路径': '绝对路径，但不属于上面任何一类',
+  '其它相对路径': '相对路径，且不在 Contents/ 下',
+  '无配置路径': 'URL 为 (null)：这类记录没有配置落点（都是 developer 父记录）',
+  '系统特权 Helper': '/Library/PrivilegedHelperTools —— 需要提权的常驻 helper',
+  '系统应用支持目录': '/Library/Application Support 下',
+  '系统库其它位置': '/Library 下但不属于上面两类',
+  '系统内置': '/System/Library 下',
+  '应用包内（Contents/MacOS）': '某个 .app 包里的可执行文件',
+  '应用包内（其它）': '在 .app 包内，但不在 Contents/MacOS',
+  '本地安装目录（/usr/local）': '/usr/local 下的第三方安装',
+  '用户主目录（用户可写）': '位于当前用户主目录 —— 该路径用户自己可写',
+  '相对路径': '相对路径（相对 plist 所在目录或工作目录）',
+  '其它绝对路径': '绝对路径，但不属于上面任何一类',
+  '无独立可执行文件': '没有 Executable Path：配置即载体，不单独启动一个程序'
+};
+
+function buildKindDirTree(items, kindCol, dirCol, mode){
+  var order = KIND_ORDER[mode] || [], rank = {};
+  order.forEach(function(k, i){ rank[k] = i; });
+  var map = {}, korder = [];
+  items.forEach(function(it){
+    var k = isNullish(it[kindCol]) ? (mode === 'config' ? '无配置路径' : '无独立可执行文件') : String(it[kindCol]);
+    if (!map[k]) { map[k] = {}; korder.push(k); }
+    var d = isNullish(it[dirCol]) ? '' : String(it[dirCol]);
+    if (!map[k][d]) map[k][d] = [];
+    map[k][d].push(it);
+  });
+  korder.sort(function(a, b){
+    var ra = Object.prototype.hasOwnProperty.call(rank, a) ? rank[a] : 999;
+    var rb = Object.prototype.hasOwnProperty.call(rank, b) ? rank[b] : 999;
+    if (ra !== rb) return ra - rb;
+    return a.localeCompare(b);
+  });
+  return korder.map(function(k){
+    var dirs = Object.keys(map[k]).sort(function(a, b){
+      if (!a) return 1;
+      if (!b) return -1;
+      return a.localeCompare(b);
+    });
+    var total = 0;
+    dirs.forEach(function(d){ total += map[k][d].length; });
+    var itemsOf = function(a){ return a.map(function(it){ return { type:'item', it:it, note:'', children:[] }; }); };
+    // 整类只有一个「无目录」桶时（如「无配置路径」）不必再套一层 —— 直接挂条目
+    if (dirs.length === 1 && dirs[0] === '') {
+      return { type:'group', label:k, count: total, note: KIND_NOTE[k] || '', children: itemsOf(map[k]['']) };
+    }
+    return {
+      type:'group', label:k, count: total, note: KIND_NOTE[k] || '',
+      children: dirs.map(function(d){
+        return {
+          type:'group', label: d || '（未给出目录）', count: map[k][d].length, note:'',
+          children: itemsOf(map[k][d])
+        };
+      })
+    };
+  });
+}
+
+function buildConfigTree(items){ return buildKindDirTree(items, 'config_kind', 'config_dir', 'config'); }
+function buildExecTree(items){ return buildKindDirTree(items, 'exec_scope', 'exec_dir', 'exec'); }
+
+function buildGenerationTree(items){
+  var order = [], map = {};
+  items.forEach(function(it){
+    var g = isNullish(it.generation) ? '未知' : String(it.generation);
+    var n = parseInt(g, 10);
+    var k = isNaN(n) ? '未知' : String(n);
+    if (!map[k]) { map[k] = []; order.push(k); }
+    map[k].push(it);
+  });
+  order.sort(function(a, b){
+    if (a === '未知') return 1;
+    if (b === '未知') return -1;
+    return parseInt(a, 10) - parseInt(b, 10);
+  });
+  return buildGroupTree(order.map(function(k){ return { label:'Generation = ' + k, items:map[k] }; }));
+}
+
+function nodeKey(n, i){
+  return S.treeMode + '::' + (n.type === 'group' ? ('G:' + n.label) : nid(n.it)) + '::' + i;
+}
+
+function renderNode(n, depth, idx){
+  var k = nodeKey(n, idx);
+  var hasKids = n.children && n.children.length;
+  var isOpen = S.open.hasOwnProperty(k) ? S.open[k] : !S.treeCollapse;
+
+  var h = ['<div class="tnode">'];
+  if (n.type === 'group') {
+    h.push('<div class="trow" data-k="' + esc(k) + '"' + (hasKids ? ' data-kids="1"' : '') + '>'
+      + '<span class="caret' + (hasKids ? '' : ' leaf') + '">' + (hasKids ? (isOpen ? '▾' : '▸') : '•') + '</span>'
+      + '<span class="tlabel gnode">' + esc(n.label) + '</span>'
+      + '<span class="gcount">' + n.count + ' 项</span>'
+      + (n.note ? '<span class="gnote">' + esc(n.note) + '</span>' : '')
+      + '</div>');
+  } else {
+    var it = n.it;
+    h.push('<div class="trow" data-k="' + esc(k) + '" data-id="' + esc(nid(it)) + '"' + (hasKids ? ' data-kids="1"' : '') + '>'
+      + '<span class="caret' + (hasKids ? '' : ' leaf') + '">' + (hasKids ? (isOpen ? '▾' : '▸') : '•') + '</span>'
+      + '<span class="tlabel">' + esc(isNullish(it.name) ? it.identifier_base : it.name) + '</span>'
+      + '<span class="tid">' + esc(it.identifier) + '</span>'
+      + '<span class="b mech">' + esc(it.type_mechanism) + '</span>'
+      + (it.uid_domain === 'system' ? '' : '<span class="b uid">UID ' + esc(it.uid) + '</span>')
+      + (it.enabled === true ? '<span class="b on">启用</span>' : '<span class="b off">停用</span>')
+      + (it.allowed === false ? '<span class="b warn">已禁止</span>' : '')
+      + (it.dup_group ? '<span class="b dup">重复 ' + esc(it.dup_group) + '</span>' : '')
+      + '<span class="b gen">gen ' + esc(it.generation) + '</span>'
+      + (n.note ? '<span class="gnote">' + esc(n.note) + '</span>' : '')
+      + '</div>');
+  }
+  if (hasKids && isOpen) {
+    h.push('<div class="tkids">');
+    n.children.forEach(function(c, j){ h.push(renderNode(c, depth + 1, idx + '/' + j)); });
+    h.push('</div>');
+  }
+  h.push('</div>');
+  return h.join('');
+}
+
+function renderTree(){
+  var items = treeItems();
+  var roots;
+  switch (S.treeMode){
+    case 'embedded':   roots = buildEmbedTree(items); break;
+    case 'bundle':     roots = buildBundleTree(items); break;
+    case 'scope':      roots = buildScopeTree(items); break;
+    case 'vendor':     roots = buildVendorTree(items); break;
+    case 'config':     roots = buildConfigTree(items); break;
+    case 'exec':       roots = buildExecTree(items); break;
+    case 'generation': roots = buildGenerationTree(items); break;
+    default:           roots = buildParentTree(items);
+  }
+  var h = ['<div class="hint" style="margin-bottom:12px;line-height:1.7;max-width:1000px">'
+    + esc(TREEDESC[S.treeMode] || '') + '</div>'];
+  roots.forEach(function(r, i){ h.push(renderNode(r, 0, String(i))); });
+  var w = document.getElementById('treewrap');
+  w.innerHTML = h.join('');
+
+  Array.prototype.forEach.call(w.querySelectorAll('.trow'), function(row){
+    row.onclick = function(){
+      var k = row.getAttribute('data-k');
+      var id = row.getAttribute('data-id');
+      // 折叠状态下 .tkids 不会出现在 DOM 里，所以「有没有子节点」必须读 data-kids，
+      // 不能靠 row.parentNode.querySelector('.tkids') 判断（那会导致只能折叠、无法展开）。
+      var hasKids = row.getAttribute('data-kids') === '1';
+      if (hasKids) {
+        var open = S.open.hasOwnProperty(k) ? S.open[k] : !S.treeCollapse;
+        S.open[k] = !open;
+        renderTree();
+      }
+      if (id) {
+        for (var i = 0; i < ITEMS.length; i++) if (nid(ITEMS[i]) === id) { openDetail(ITEMS[i]); break; }
+      }
+    };
+  });
+  document.getElementById('countTree').innerHTML = '条目 <b>' + items.length + '</b> / ' + ITEMS.length
+    + '　·　顶层节点 <b>' + roots.length + '</b>';
+}
+
+/* ------------------------------------------------------------------ 详情 */
+function openDetail(it){
+  S.sel = it;
+  var d = document.getElementById('detail');
+  var h = ['<button class="close" id="dclose">关闭</button>'];
+  h.push('<h3>' + esc(isNullish(it.name) ? it.identifier_base : it.name) + '</h3>');
+  h.push('<div class="sub" style="font-family:var(--mono);font-size:11.5px">' + esc(it.identifier) + '</div>');
+  h.push('<div style="margin-top:8px">'
+    + '<span class="b mech">' + esc(it.type_mechanism) + '</span> '
+    + '<span class="b">UID ' + esc(it.uid) + '（' + esc(it.uid_domain) + '）</span> '
+    + (it.enabled === true ? '<span class="b on">启用</span>' : '<span class="b off">停用</span>') + ' '
+    + (it.allowed === false ? '<span class="b warn">已禁止</span>' : '<span class="b on">已允许</span>') + ' '
+    + '<span class="b gen">gen ' + esc(it.generation) + '</span>'
+    + (it.dup_group ? ' <span class="b dup">重复 ' + esc(it.dup_group) + '</span>' : '')
+    + '</div>');
+
+  GROUPS.concat(['未预置字段','其它']).forEach(function(g, gi){
+    if (gi > 0 && GROUPS.indexOf(g) >= 0) return;
+    var cols = ALLCOLS.filter(function(c){ return colGrp(c) === g && !isNullish(it[c]) && it[c] !== false; });
+    if (!cols.length) return;
+    h.push('<div class="gtitle">' + esc(g) + '</div><table>');
+    cols.forEach(function(c){
+      var v = it[c];
+      var txt;
+      if (Object.prototype.toString.call(v) === '[object Array]') txt = v.join(' ｜ ');
+      else if (v === true) txt = 'TRUE';
+      else txt = String(v);
+      h.push('<tr><td>' + esc(colZh(c)) + '<br><em style="color:var(--dim2);font-style:normal;font-family:var(--mono);font-size:10.5px">'
+        + esc(c) + '</em></td><td><code>' + esc(txt) + '</code></td></tr>');
+    });
+    h.push('</table>');
+  });
+  d.innerHTML = h.join('');
+  d.classList.remove('hidden');
+  document.getElementById('dclose').onclick = function(){ d.classList.add('hidden'); S.sel = null; };
+
+  // 高亮表格行
+  Array.prototype.forEach.call(document.querySelectorAll('#tb tr'), function(tr){
+    tr.classList.toggle('sel', tr.getAttribute('data-id') === nid(it));
+  });
+}
+
+/* ------------------------------------------------------------------ 导出 CSV */
+function exportCsv(){
+  var rows = sorted(filtered());
+  var cols = S.cols.length ? S.cols : ALLCOLS;
+  var L = [];
+  L.push(cols.map(function(c){ return q(colZh(c)); }).join(','));
+  L.push(cols.map(function(c){ return q(c); }).join(','));
+  rows.forEach(function(it){
+    L.push(cols.map(function(c){
+      var v = it[c];
+      if (Object.prototype.toString.call(v) === '[object Array]') v = v.join(' | ');
+      else if (v === true) v = 'TRUE';
+      else if (v === false) v = 'FALSE';
+      else if (v === undefined || v === null) v = '';
+      return q(v);
+    }).join(','));
+  });
+  function q(s){
+    s = String(s == null ? '' : s);
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  var blob = new Blob(['\ufeff' + L.join('\r\n')], { type:'text/csv;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'btm-当前视图-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+/* ------------------------------------------------------------------ 字段说明 */
+function renderHelp(){
+  var el = document.getElementById('help');
+  el.innerHTML = [
+    '<h2>这份文件是什么</h2>',
+    '<p><code>sudo sfltool dumpbtm</code> 把 macOS 的持久化项数据库（Background Task Management，'
+    + '<code>/private/var/db/com.apple.backgroundtaskmanagement/BackgroundItems-v*.btm</code>）导出成文本。'
+    + '凡是「能开机或登录后自动运行、不需要每次点确认」的东西都在里面：登录项、后台代理（agent）、'
+    + '系统守护进程（daemon）、QuickLook / Spotlight 插件、以及应用注册项。</p>',
+    '<p>本次快照：<code>' + esc(DATA.source_file) + '</code>，采集于 <code>' + esc(DATA.captured_at) + '</code>，'
+    + '主机 <code>' + esc(DATA.host) + '</code>，系统 <code>' + esc(DATA.os_version) + ' ' + esc(DATA.arch) + '</code>。</p>',
+
+    '<h2>三个 UID 记录组</h2>',
+    '<p>dump 按 UID 分组，最前面出现的 <code>-2</code> 是一个<strong>合成组</strong>，把散落在各处的后台项汇到一起；'
+    + '<code>0</code> 是 root；<code>501</code> 是普通用户。同一个软件常常同时出现在 <code>-2</code> 和 <code>501</code> 里，'
+    + '这不是重复，而是它在两个作用域各注册了一份。</p>',
+
+    '<h2>Generation（代数）到底是什么</h2>',
+    '<p><strong>它是 BTM 给每条记录维护的一个计数器，不代表父子代际。</strong>'
+    + 'Apple 没有公开它的定义（<code>sfltool</code> 连 man page 都还没写），所以这里只能给经验判断：'
+    + '同一条记录每被重新注册一次，这个数就往上走；数字越大，说明它被反复写入的次数越多。</p>',
+    '<p>本次快照的旁证：' + (function(){
+      var devMax = 0, top = [];
+      ITEMS.forEach(function(it){
+        var g = Number(it.generation);
+        if (isNaN(g)) return;
+        if (String(it.type_mechanism) === 'developer') devMax = Math.max(devMax, g);
+        top.push([g, it]);
+      });
+      top.sort(function(a, b){ return b[0] - a[0]; });
+      var names = top.slice(0, 4).map(function(x){
+        var it = x[1];
+        var nm = (it.name && it.name !== '(null)') ? it.name
+               : (it.identifier_base || it.identifier || '（无名）');
+        return '<code>' + esc(nm) + '</code> 是 ' + esc(x[0]);
+      });
+      return '所有 <code>developer</code> 开发者父记录都停在 ' + devMax
+        + ' 及以下，而排在最前的几条明显更高 —— ' + names.join('、') + '。';
+    })() + '这正是「每次启动都重新注册登录项」的程序该有的样子。</p>',
+    '<div class="warnbox"><p><strong>实用结论：</strong>不要用 Generation 判层级。它更大的价值是另一个方向 —— '
+    + '因为它会自己变化，所以前后两次快照里「只有 Generation 变了」通常不意味着你改了什么。'
+    + '本工作区的比较工具专门把它单列成一层「仅代数变化」，避免真正的人工改动被它刷掉。</p></div>',
+
+    '<h2>Identifier（标识符）的前缀数字</h2>',
+    '<p>标识符形如 <code>16.com.example.daemon</code>，点号前的数字是作用域码，和 Type 的取值域一致：</p>',
+    '<table><tr><th>前缀</th><th>含义</th><th>本次条数</th></tr>',
+    ['2|应用', '4|登录项', '8|用户代理', '16|系统守护进程', '64|Spotlight 插件', '2048|QuickLook 插件'].map(function(x){
+      var p = x.split('|')[0], zh = x.split('|')[1];
+      var n = ITEMS.filter(function(it){ return String(it.identifier_scope) === p; }).length;
+      return '<tr><td><code>' + p + '</code></td><td>' + zh + '</td><td>' + n + '</td></tr>';
+    }).join(''),
+    '</table>',
+    '<p>拆出来放在 <code>identifier_scope</code> / <code>identifier_scope_zh</code> / <code>identifier_base</code> 三列里，'
+    + '方便按「去掉前缀的名字」聚合。</p>',
+
+    '<h2>Parent Identifier（父标识符）</h2>',
+    '<p>指向「谁负责注册我」。多数情况下指向一条 Type 为 <code>developer</code> 的开发者父记录 —— 这类记录本身不执行任何程序，'
+    + '它的 <code>Identifier</code> 直接就是开发者名，如 <code>Example Corp</code>、<code>Acme Inc</code>、'
+    + '<code>Unknown Developer</code>；也可能是某个应用条目，如 <code>2.com.example.toolbox</code>。</p>',
+    '<p>派生列：<code>parent_kind</code>（父是哪一类）、<code>child_count</code>（有多少条挂在它下面）、'
+    + '<code>depth</code>（层级）、<code>node_path</code>（完整归属链）。</p>',
+
+    '<h2>Embedded Item Identifiers（嵌入项）</h2>',
+    '<p>一条记录内嵌了哪些子项。它和 Parent Identifier 是<strong>同一关系的两个方向，但集合并不重合</strong>。'
+    + (function(){
+      var byId = {};
+      ITEMS.forEach(function(it){ if (it.identifier && !byId[it.identifier]) byId[it.identifier] = it; });
+      for (var i = 0; i < ITEMS.length; i++) {
+        var p = ITEMS[i];
+        var list = p.embedded_item_identifiers || [];
+        if (Object.prototype.toString.call(list) !== '[object Array]') {
+          list = String(list).split('|').map(function(x){ return x.trim(); }).filter(Boolean);
+        }
+        for (var j = 0; j < list.length; j++) {
+          var c = byId[list[j]];
+          if (c && c.parent_identifier && c.parent_identifier !== p.identifier) {
+            return '本次快照里就有例子：<code>' + esc(p.identifier) + '</code> 声明自己嵌入了 <code>' + esc(c.identifier)
+              + '</code>，但后者自述的父级却是 <code>' + esc(c.parent_identifier) + '</code>。'
+              + '两个字段对不上，本身就是值得看一眼的信号。</p>';
+          }
+        }
+      }
+      return '本次快照里两个字段恰好自洽；一旦出现对不上，那本身就是值得看一眼的信号。</p>';
+    })(),
+
+    '<h2>Assoc. Bundle IDs 与 Bundle Identifier</h2>',
+    '<p><code>Bundle Identifier</code> 是这条记录所属的应用包名；<code>Assoc. Bundle IDs</code> 是它声明关联的包名列表。'
+    + '两者合起来派生出 <code>bundle_key</code>（归组用的键），「Bundle 归组树」就是按它聚合的，'
+    + '可以把同一 App 的条目、代理、守护进程聚回一堆。</p>',
+
+    '<h2>Disposition（处置状态）</h2>',
+    '<p>形如 <code>[enabled, allowed, visible, notified] (0xb)</code>。已拆成 5 个布尔列：'
+    + '<code>enabled</code> 已启用、<code>allowed</code> 已允许、<code>visible</code> 可见、'
+    + '<code>notified</code> 已通知、<code>hidden</code> 隐藏（<code>visible</code> 取反）。</p>',
+    '<p>值得注意的是 <code>enabled</code> 与 <code>allowed</code> 的四种组合是否自相矛盾 —— '
+    + '<code>enabled + disallowed</code> 或 <code>disabled + allowed</code> 属于已知的数据库不一致，'
+    + '可以用「仅已禁止」筛选快速看一眼。</p>',
+
+    '<h2>其它列</h2>',
+    '<table><tr><th>列</th><th>说明</th></tr>',
+    [['Type', '原文形如 <code>legacy daemon (0x10010)</code>。拆成 <code>type_mechanism</code>（机制）、'
+      + '<code>type_modifiers</code>（修饰词，如 legacy / curated）、<code>type_hex</code>（类型码）。'],
+     ['URL', '注册载体（配置）的落点：<strong>配置放在哪里</strong>。指向的是 plist，或应用包 / 应用包内的组件本身，<strong>不是</strong>可执行文件。'
+      + '派生 <code>url_path</code>（去掉 <code>file://</code> 并解开百分号转义）、<code>config_kind</code>（注册位置类别）、<code>config_dir</code>（所属目录）。'],
+     ['Executable Path', '真正被加载执行的文件：<strong>可执行文件落在哪里</strong>。派生 <code>exec_scope</code>（落点性质）、<code>exec_dir</code>（所属目录）。'
+      + '<strong>它与 URL 是两个独立的问题</strong>——同一条记录可以两者都有、只有其一，或都没有；两者不一致时说明 plist 注册的配置与真正跑起来的程序不在同一处。'],
+     ['dup_group', '同一 UID 下 <code>标识符基名 + 持久化机制</code> 完全相同的多条记录，会打上同一个 D 编号。'
+      + (function(){
+          var g = {};
+          ITEMS.forEach(function(it){ if (it.dup_group) (g[it.dup_group] = g[it.dup_group] || []).push(it); });
+          var ks = Object.keys(g);
+          if (!ks.length) return '本次快照没有重复注册。';
+          return '本次有 ' + ks.length + ' 处 —— ' + ks.map(function(k){
+            return '<code>' + esc(g[k][0].identifier) + '</code>（' + g[k].length + ' 条）';
+          }).join('、') + '。';
+        })()
+      + '这些记录<strong>一条都没有被删掉</strong>，只是被标记出来。'],
+     ['match_key', '跨快照比对用的语义主键（标识符基名｜机制）。'],
+     ['source_line', '该条记录在原始 dump 文本里的行号，方便逐字回溯。']]
+      .map(function(r){ return '<tr><td><code>' + r[0] + '</code></td><td>' + r[1] + '</td></tr>'; }).join(''),
+    '</table>',
+
+    '<h2>八棵关系树怎么选</h2>',
+    '<table><tr><th>树</th><th>看什么</th></tr>',
+    TREEMODES.map(function(m){
+      return '<tr><td>' + esc(m.t) + '</td><td>' + esc(TREEDESC[m.k]) + '</td></tr>';
+    }).join(''),
+    '</table>',
+    '<p class="hint">说明：① ② 两棵树里，同一条记录只挂在第一个匹配到的父节点下；'
+    + '跨 UID 的父引用会照原样标注为「跨组父」而不会被强行搬走，以确保分组归属与 dump 一致。</p>',
+
+    '<h2>⑥ 与 ⑦ 为什么是两棵树</h2>',
+    '<p><code>URL</code> 与 <code>Executable Path</code> 看起来都在说「路径」，但它们回答的是'
+    + '<strong>两个不同的问题</strong>：前者是<strong>配置（plist / 应用包）注册在哪里</strong>，'
+    + '后者是<strong>真正被执行的程序落在哪里</strong>。任意一条记录都属于下面三种形态之一：</p>',
+    '<table><tr><th>形态</th><th>说明</th></tr>',
+    '<tr><td>两者都有</td><td>配置注册在某处，且另有独立可执行文件（daemon / agent 都是这种）</td></tr>',
+    '<tr><td>只有 URL</td><td>配置即载体：登录项、QuickLook 扩展、Spotlight 导入器、把自己注册为登录项的应用</td></tr>',
+    '<tr><td>两者都无</td><td>developer 父记录，只表示「归属」，没有落点</td></tr>',
+    '</table>',
+    '<p class="hint">所以⑥与⑦<strong>不是同一批东西的两种切法</strong>——它们的叶子集合天然重叠但不相等，'
+    + '各自末尾都有一个「无」桶把不适用的记录如实收好（⑥ 收无 URL 的 developer 父记录，⑦ 收不单独启程序的配置载体），'
+    + '一条都不会被悄悄丢掉。'
+    + '同时注意类别不是树里现猜的 —— <code>config_kind</code> / <code>config_dir</code> / '
+    + '<code>exec_scope</code> / <code>exec_dir</code> 四列在表格视图里也能看到，两边口径一致。</p>'
+  ].join('');
+}
+
+/* ------------------------------------------------------------------ 视图切换 */
+function setView(v){
+  S.view = v;
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-v') === v);
+  });
+  document.getElementById('toolsTable').classList.toggle('hidden', v !== 'table');
+  document.getElementById('toolsTree').classList.toggle('hidden', v !== 'tree');
+  document.getElementById('tablewrap').classList.toggle('hidden', v !== 'table');
+  document.getElementById('treewrap').classList.toggle('hidden', v !== 'tree');
+  document.getElementById('help').classList.toggle('hidden', v !== 'help');
+  if (v === 'table') renderTable();
+  if (v === 'tree') renderTree();
+  if (v === 'help') renderHelp();
+}
+
+/* ------------------------------------------------------------------ 初始化 */
+(function init(){
+  var sub = '取自 ' + DATA.source_file;
+  sub += '　·　采集 ' + DATA.captured_at;
+  sub += '　·　排序口径 ' + DATA.sort_preset;
+  if (DATA.null_as_empty) sub += '　·　(null) 已清空';
+  document.getElementById('sub').textContent = sub;
+
+  var nOn = ITEMS.filter(function(it){ return it.enabled === true; }).length;
+  var nNoSign = ITEMS.filter(function(it){ return isNullish(it.developer_name) && isNullish(it.team_identifier); }).length;
+  var nDup = ITEMS.filter(function(it){ return !!it.dup_group; }).length;
+  document.getElementById('stat').innerHTML =
+      '<span class="chip">条目 <b>' + ITEMS.length + '</b></span>'
+    + '<span class="chip">记录组 <b>' + SECTIONS.length + '</b></span>'
+    + '<span class="chip">字段 <b>' + ALLCOLS.length + '</b></span>'
+    + '<span class="chip">已启用 <b>' + nOn + '</b></span>'
+    + '<span class="chip">无签名信息 <b>' + nNoSign + '</b></span>'
+    + '<span class="chip">重复注册 <b>' + nDup + '</b></span>';
+
+  // 记录组 / 机制 下拉
+  var fu = document.getElementById('fUid');
+  SECTIONS.forEach(function(s){
+    var o = document.createElement('option');
+    o.value = String(s.uid);
+    o.textContent = 'UID ' + s.uid + '（' + s.item_count + ' 项）';
+    fu.appendChild(o);
+  });
+  var fm = document.getElementById('fMech');
+  activeMechs().forEach(function(m){
+    var o = document.createElement('option');
+    o.value = m; o.textContent = m;
+    fm.appendChild(o);
+  });
+
+  // 关系树下拉
+  var tm = document.getElementById('treeMode');
+  TREEMODES.forEach(function(m){
+    var o = document.createElement('option');
+    o.value = m.k; o.textContent = m.t;
+    tm.appendChild(o);
+  });
+  tm.value = S.treeMode;
+
+  // 列
+  S.cols = loadCols();
+
+  // 事件
+  var qi = document.getElementById('q'), deb = null;
+  qi.addEventListener('input', function(){
+    clearTimeout(deb);
+    deb = setTimeout(function(){ S.q = qi.value; document.getElementById('tablewrap').scrollTop = 0; renderTable(); }, 90);
+  });
+  document.getElementById('fStatus').onchange = function(){ S.status = this.value; renderTable(); };
+  fu.onchange = function(){ S.uid = this.value; renderTable(); };
+  fm.onchange = function(){ S.mech = this.value; renderTable(); };
+  document.getElementById('btnCols').onclick = function(){
+    var p = document.getElementById('colpanel');
+    p.classList.toggle('hidden');
+    if (!p.classList.contains('hidden')) renderColPanel();
+  };
+  document.getElementById('btnCsv').onclick = exportCsv;
+  document.getElementById('btnReset').onclick = function(){
+    S.q=''; S.status=''; S.uid=''; S.mech=''; S.sortCol=null; S.sortAsc=true; S.cols=ALLCOLS.slice();
+    qi.value=''; document.getElementById('fStatus').value=''; fu.value=''; fm.value='';
+    saveCols(); renderColPanel(); renderTable();
+  };
+  tm.onchange = function(){ S.treeMode = this.value; S.open = {}; renderTree(); };
+  document.getElementById('treeOnlyOn').onchange = function(){ S.treeOnlyOn = this.checked; renderTree(); };
+  document.getElementById('treeCollapse').onchange = function(){ S.treeCollapse = this.checked; S.open = {}; renderTree(); };
+  document.getElementById('btnExpandAll').onclick = function(){ S.treeCollapse = false; S.open = {}; renderTree(); };
+  document.getElementById('btnCollapseAll').onclick = function(){
+    S.treeCollapse = true; S.open = {}; renderTree();
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function(b){
+    b.onclick = function(){ setView(b.getAttribute('data-v')); };
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){ document.getElementById('detail').classList.add('hidden'); S.sel = null;
+      Array.prototype.forEach.call(document.querySelectorAll('#tb tr'), function(tr){ tr.classList.remove('sel'); }); }
+  });
+
+  renderColPanel();
+  setView('table');
+})();
+</script>
+</body>
+</html>

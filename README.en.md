@@ -61,7 +61,7 @@ Security triage, compliance auditing and troubleshooting all need **complete, tr
 | **No value rewriting** | `(null)`, `(0x10010)`, `[ legacy ]` are preserved verbatim. Add `-n` if you want a cleaner table |
 | **Four formats per run** | TSV (lossless intermediate) / CSV (full-field table) / JSON (structured data) / HTML (browsable page) — all derived from one source, so "CSV is missing a field JSON has" cannot happen |
 | **Browsable page** | Single file, works offline. Table view (column picker / filter / sort / export current view) + **8 relationship trees** + an in-page field reference |
-| **Bilingual interface** | The interface text exists in Chinese and English; `-L auto/zh/en/both` picks one (default: decided from your system language). The unused variant is stripped at render time, so the file you get is **genuinely monolingual**. Data files and the diff tool are completely unaffected — see 6.4 |
+| **Bilingual interface** | A 中文 / English toggle in the top-right corner; defaults to your browser language and remembers a manual choice locally. One HTML only — data files and the diff tool are completely unaffected, see 6.4 |
 | **Before/after diff** | Five change tiers (added / removed / attribute / derived / generation-only) plus a **column-set change layer**, so noise never drowns the real edits |
 | **Deterministic** | The same input run twice produces **byte-identical** `tsv` and `csv`. This is what makes line-by-line diffing meaningful |
 | **Ships with a self-test** | `btm-selftest.js` runs the page logic for real against a minimal DOM stub (development only; normal use needs no Node) |
@@ -120,8 +120,8 @@ To use it on **your own machine**:
 ### 6.1 `btm.sh` — capture + parse + export
 
 ```
-btm.sh [-f <dumpbtm.txt>] [-l <label>] [-o <outdir>] [-s <sort>] [-L <lang>] [-n] [-q]
-btm.sh -r <snapshot-dir> [-L <lang>]    Re-render that snapshot's HTML (no data touched)
+btm.sh [-f <dumpbtm.txt>] [-l <label>] [-o <outdir>] [-s <sort>] [-n] [-q]
+btm.sh -r <snapshot-dir>    Re-render that snapshot's HTML (no data touched)
 ```
 
 | Option | Meaning |
@@ -130,7 +130,6 @@ btm.sh -r <snapshot-dir> [-L <lang>]    Re-render that snapshot's HTML (no data 
 | `-l <label>` | Snapshot label, default `snapshot`. Use it to distinguish "before / after" |
 | `-o <dir>` | Output root, default `<script dir>/snapshots` |
 | `-s <sort>` | Sort preset, see 6.3 |
-| `-L <lang>` | Page language: `auto` (default) / `zh` / `en` / `both`, see 6.4 |
 | `-n` | Blank out `(null)` values for a cleaner table (**default: preserved verbatim**) |
 | `-q` | Quiet mode, no summary printed |
 | `-r <dir>` | Re-render only: re-apply the current page template to that directory's existing `btm_items.json` |
@@ -158,27 +157,29 @@ Alternatives: `type` (mechanism first), `vendor` (group by signing subject), `id
 
 ### 6.4 Page language
 
+The page is rendered **once**, and the language is switched *inside the page*: there is a 中文 / English toggle in the top-right corner.
+
+- **Defaults to your browser**: if `navigator.languages[0]` starts with `zh` (`zh-CN` / `zh-Hans` / `zh-TW` / `zh_CN`…) you get the bilingual view, otherwise English.
+- **A manual switch is remembered**: the choice is stored in `localStorage` (key `btm.lang`) and reused the next time you open the page in that browser.
+- **Switching does not reload the page and does not lose state**: the current view, filters, table sort, column selection and expanded tree nodes all survive.
+
 ```zsh
-./btm.sh -L en                       # English-only page
-./btm.sh -L both                     # btm_items.html (bilingual) + btm_items.en.html (English)
-./btm.sh -L zh                       # force the bilingual page
-./btm.sh -r snapshots/latest -L en   # re-render an existing snapshot in English (data untouched)
+./btm.sh                        # one btm_items.html; the reader picks the language
+./btm.sh -r snapshots/latest    # re-render after a template change; language comes along
 ```
 
-| Value | Effect |
+| Variant | What it looks like |
 |---|---|
-| `auto` (default) | Reads the macOS preferred language (`AppleLanguages` → `AppleLocale` → `$LANG`): anything starting with `zh` gets the bilingual page, everything else gets English |
-| `zh` | Bilingual: Chinese column names on the first line with the raw column key under them; trees and field reference in Chinese |
-| `en` | English only |
-| `both` | One of each (`btm_items.html` bilingual + `btm_items.en.html` English) |
+| 中文 | Bilingual: Chinese column name on the first line with the raw column key under it; trees and field reference in Chinese |
+| English | English throughout — interface text *and* the Chinese enum values carried by the data |
 
 Three boundaries worth remembering:
 
-- **It only affects the HTML's interface text.** `tsv` / `csv` / `json` and everything the diff tool reads and writes stay byte-for-byte identical — switching language can never muddy the question "did the data actually change?".
-- **Chinese enum values carried by the data are not rewritten either.** Column groups and the values of `config_kind`, `exec_scope`, `identifier_scope_zh`, `persistence_zh` and `parent_kind` are produced by `btm-extract.awk` / `btm-emit.awk`; the English page translates them through a display map held in the template. The CSV export and the page's own "Export view as CSV" still hand you the original values.
-- **The template keeps a single copy of the logic.** Both language variants live in `btm-view.tpl.html` behind markers, and the renderer strips the one you did not ask for — so the HTML you get is **genuinely monolingual** (an English page carries no Chinese). The trade-off is that **implementation comments in the template remain Chinese**; they are for whoever reads the source, not page content.
+- **It only affects the HTML's interface text.** `tsv` / `csv` / `json` and everything the diff tool reads and writes stay byte-for-byte identical — switching language can never muddy the question "did the data actually change?". And since only one HTML is produced, there is no "which file is in which language" ambiguity either.
+- **Chinese enum values carried by the data are not rewritten either.** Column groups and the values of `config_kind`, `exec_scope`, `identifier_scope_zh`, `persistence_zh` and `parent_kind` are produced by `btm-extract.awk` / `btm-emit.awk`; the English view translates them through a display map held in the template. The CSV export and the page's own "Export view as CSV" still hand you the original values.
+- **The template keeps a single copy of the logic, with both sets of text.** Both dictionaries live in `btm-view.tpl.html` and the page reads whichever one the current language points at. The trade-off is that **implementation comments in the template remain Chinese**; they are for whoever reads the source, not page content.
 
-> Share the page with a non-Chinese reader with `-L en`; keep both around with `-L both`.
+> The 中文 / English buttons spell each language **in its own language** on purpose — they are not translated. Otherwise an English interface would have no way back to Chinese (GitHub and Wikipedia do the same). They are also the only place in the page where both languages appear together.
 
 ---
 
@@ -191,16 +192,15 @@ One run produces four formats from the same data — different views, not differ
 | `btm_items.tsv` | **Lossless intermediate.** Tab-separated; the source of the other three formats and the input to the diff tool. This is the file to check "character-for-character against the original dump" |
 | `btm_items.csv` | **Full-field table.** 51 columns, UTF-8 BOM, opens cleanly in Excel / Numbers / Google Sheets. Every field is quoted so Excel won't turn UUIDs into dates or long numbers into scientific notation |
 | `btm_items.json` | **Structured data.** List-valued fields stay **arrays** rather than being flattened; also carries `columns` / `column_meta` / `list_columns` / `bool_columns` / `sections` |
-| `btm_items.html` | **Browsable page.** Single file, works offline. Table view + 8 relationship trees + field reference. Interface language follows `-L`, see 6.4 |
+| `btm_items.html` | **Browsable page.** Single file, works offline. Table view + 8 relationship trees + field reference. The interface language is switched inside the page, see 6.4 |
 
 Plus, per snapshot:
 
 | File | Content |
 |---|---|
 | `dumpbtm.txt` | The raw text, archived (a copy with `-f`, the capture itself when live) |
-| `capture.txt` | Capture environment and counts, human-readable (includes `ui_lang`: the language this page used) |
+| `capture.txt` | Capture environment and counts, human-readable |
 | `meta.json` | The same metadata, machine-readable |
-| `btm_items.en.html` | Only with `-L both`: same data as `btm_items.html`, English-only interface |
 
 **The column picker in the HTML is a page feature and does not change data files**: CSV / JSON always carry every field. Your selection is stored in the browser's `localStorage`, so opening a "before" and an "after" snapshot keeps the same column set for easy comparison.
 
@@ -501,12 +501,11 @@ Running `btm.sh` creates `snapshots/<label>-<timestamp>/` (already git-ignored).
 
 ## 14. Development & self-test
 
-The page interaction logic (table / sort / filter / column panel / 8 trees / collapse / detail / field reference) is covered by an automated test using Node with a minimal DOM stub. **The same assertions run against both the bilingual and the English-only page** (expected strings are derived from the page's own dictionary rather than hard-coded in either language):
+The page interaction logic (table / sort / filter / column panel / 8 trees / collapse / detail / field reference) is covered by an automated test using Node with a minimal DOM stub. Expected strings are **derived from the page's own dictionary** rather than hard-coded in either language; the main run uses the page's default language, then the test switches the same loaded page to English and re-checks:
 
 ```zsh
-./btm.sh -f examples/demo-before.txt -l t -o /tmp/t -L both
-node btm-selftest.js /tmp/t/latest/btm_items.html        # bilingual
-node btm-selftest.js /tmp/t/latest/btm_items.en.html     # English only
+./btm.sh -f examples/demo-before.txt -l t -o /tmp/t
+node btm-selftest.js /tmp/t/latest/btm_items.html        # page self-test (includes a language-switch pass)
 node btm-selftest.js --i18n btm-view.tpl.html            # dictionary-only check, no snapshot needed
 ```
 
@@ -515,9 +514,14 @@ Assertions are **derived from the data** (not pinned to any one machine's softwa
 - Each tree's item-node count must be **≤ the total record count** (guards against duplicate mounting)
 - The configuration tree shows only configuration kinds and the executable tree only executable kinds (**no cross-contamination** — the hard evidence that the two trees really rest on two different fields)
 - The record counts of the two "none" buckets must match the number of records with an empty `URL` / `Executable Path`
+- **The detail panel must list every group of the record** — also a regression test. Historical bug: the grouping loop read `if (gi > 0 && GROUPS.indexOf(g) >= 0) return;`, which skipped **all** groups but the first, so the panel showed a single "Record group" section and silently swallowed the other 40-odd fields while still looking perfectly normal. The assertion compares group *counts* rather than field counts, so adding a column never causes a false alarm
 - **A collapsed node must be expandable again** — a regression test. Historical bug: the original code decided "does this node have children" by asking whether a `.tkids` element existed in the DOM, but that element is not rendered while collapsed, so the UI degraded to "collapse works, expand never does". The fix records "has children" in a `data-kids` attribute. The test was verified against the pre-fix logic to confirm it isn't decorative
 - **Kind membership must match the group-label element exactly**, never a bare substring — the English label `Application Support` is also a substring of the directory path `/Library/Application Support/…`, so a naive substring test reports an ordinary path in the configuration tree as "the two trees are cross-contaminated". This one came out of a real failure
 - **The two dictionaries must have one-to-one keys**, and the `en` side must contain no CJK or full-width characters (`--i18n` mode). A missing key renders as the key name itself in the page, so this check guards against "added interface text, forgot the other language"
+- **Switching language must not lose state**: after switching to English the view, filters, sort, column selection and expanded tree nodes must all survive, and the choice must be written to `localStorage`
+- **No Chinese in the English *interface***: 12 rendered views plus every record's detail panel are scanned character by character. Before scanning, **data values are stripped out** — having an app with a Chinese name installed ("坚果云" and the like) is not a translation gap; what matters is the interface text and the enum values that *should* be translated. The 中文 / English toggle buttons are exempt by design (a language names itself)
+
+> Every one of these was checked against a **negative control**: breaking a dictionary key, making the switch reset the expanded state, skipping the `localStorage` write, dropping the enum translation from the detail panel, and reverting the detail grouping loop to its old form — each mutation tripped the matching assertion, confirming the tests are not decorative.
 
 ---
 
@@ -532,7 +536,7 @@ This tool handles **metadata only**. Please note its boundaries:
 - **`url_path` decodes only `%20` / `%2F` / `%40`**; other percent-escapes are left as-is.
 - **The diff tool's key matching is "last one wins"**: if a UID contains twins with an identical `(uid, match_key, executable_path)`, they are separated earlier by the level-1 uuid match, so normal cases are unaffected; a mis-pairing is only possible if both records' UUIDs changed as well.
 - **The Chinese column-name map is maintained in exactly one place** (`btm-emit.awk`; `btm-diff.sh` reuses it via `MODE=colmap`). Remember to keep it in sync when adding fields.
-- **The English page translates the interface only, never the data.** `-L` has no effect on `tsv` / `csv` / `json`; implementation comments in the template remain Chinese (the template keeps a single copy of the logic rather than being duplicated). The data-side Chinese column names live in `btm-emit.awk`, the interface-side English ones live in the template dictionary (`col.<column>`); the two layers are independent — so a new column means adding one line to each.
+- **The English view translates the interface only, never the data.** Language switching has no effect on `tsv` / `csv` / `json`; implementation comments in the template remain Chinese (the template keeps a single copy of the logic rather than being duplicated). The data-side Chinese column names live in `btm-emit.awk`, the interface-side English ones live in the template dictionary (`col.<column>`); the two layers are independent — so a new column means adding one line to each.
 
 ---
 

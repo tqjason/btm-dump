@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-<html lang="<!--BTM_HTMLLANG-->">
+<!-- lang 与 title 的初值是给「脚本没跑起来」的兜底；
+     正常情况下页面加载后会立刻按浏览器语言覆盖它们，见 applyLang()。 -->
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title><!--BTM_TITLE--></title>
+<title>macOS Background Items (BTM)</title>
 <style>
 :root{
   --bg:#0e1116; --panel:#161b23; --panel2:#1b2129; --line:#2a3340; --line2:#3a4553;
@@ -26,6 +28,15 @@ h1 .badge{font-size:10.5px;font-weight:600;color:var(--accent);border:1px solid 
 .chip{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 9px;
   font-size:11.5px;color:var(--dim);white-space:nowrap}
 .chip b{color:var(--txt);font-weight:600}
+.row1 .rightside{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+/* 语言切换器。两个按钮上的「中文 / English」是各语言的自称，**故意不跟着界面翻译** ——
+   英文界面下若把「中文」也译成 "Chinese"，非中英母语的人反而找不到回中文的入口；
+   GitHub / Wikipedia 等一律这么做。因此这两处是全页面仅有的「两种语言同时出现」的地方。 */
+.langsw{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.langsw button{border:0;border-radius:0;background:transparent;padding:4px 11px;font-size:12px;color:var(--dim2)}
+.langsw button:hover{color:var(--txt);background:var(--panel2);border-color:transparent}
+.langsw button.on{background:#1a2432;color:var(--accent);font-weight:600}
+.langsw button + button{border-left:1px solid var(--line)}
 nav.tabs{display:flex;gap:2px;margin-top:12px}
 nav.tabs button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--dim);
   padding:7px 13px;font-size:13px;cursor:pointer;border-radius:6px 6px 0 0}
@@ -145,7 +156,13 @@ aside#detail code{font-family:var(--mono);font-size:11.5px}
       <h1><span data-t="h1"></span> <span class="badge">BTM</span></h1>
       <div class="sub" id="sub"></div>
     </div>
-    <div class="stat" id="stat"></div>
+    <div class="rightside">
+      <div class="langsw" id="langsw" role="group" aria-label="Language">
+        <button type="button" data-lang="zh">中文</button>
+        <button type="button" data-lang="en">English</button>
+      </div>
+      <div class="stat" id="stat"></div>
+    </div>
   </div>
 
   <nav class="tabs" id="tabs">
@@ -206,9 +223,9 @@ aside#detail code{font-family:var(--mono);font-size:11.5px}
 /* ==================================================================
  * 界面语言（i18n）
  *
- * 同一份模板里放两套界面文案，渲染时由 btm.sh 按 -L 指定的语言
- * **只保留其中一套**，另一套连同外面的标记行一起被 awk 剥掉。
- * 所以产出的 HTML 是真正单语的，文件里不会夹带另一种语言。
+ * 只产出一个 HTML：两套界面文案都留在页面里，**运行时**切换。
+ * 默认语言取浏览器语言，用户可用右上角切换器手动改，选择存在 localStorage
+ * （键 btm.lang），下次打开同一台浏览器直接沿用。
  *
  *   标记行：  /* ---BTM_I18N:zh--- *\/   ...开始一份
  *             /* ---BTM_I18N:en--- *\/
@@ -218,21 +235,25 @@ aside#detail code{font-family:var(--mono);font-size:11.5px}
  *   zh —— 中英对照：表格里「中文列名 + 原始列名」双行、树与说明用中文
  *   en —— 纯英文
  *
- * 两条边界，注意别越界：
+ * 三条边界，注意别越界：
  *   1. **数据文件不翻译**。tsv / csv / json 里的列名与取值永远是原样，
  *      翻译只发生在浏览页的显示层（en 形态下界面显示英文，数据仍是原值）。
  *   2. 数据里自带的中文枚举值（列分组、config_kind、exec_scope、
  *      identifier_scope_zh、persistence_zh、parent_kind）也不改数据，
  *      而是靠下文的 V（枚举值显示映射）在 en 形态下换成英文，见 show()。
+ *   3. 语言切换器上「中文 / English」两个按钮是**语言自称**，不参与翻译 ——
+ *      否则英文界面下就没有能切回中文的入口了（见样式表里的说明）。
+ *
+ * 切换语言不重新加载页面：换掉 L / V 后跑一遍 applyLang()，
+ * 当前视图、筛选条件、列选择、树的展开状态都会原样保留。
  * ================================================================== */
 /* ===BTM_I18N_BEGIN=== */
+var I18N = { zh: {}, en: {} };
 /* ---BTM_I18N:zh--- */
-var BTM_LANG = 'zh';
-
 /* 数据枚举值的显示映射：zh 形态原样显示，故为空表 */
-var V = {};
+I18N.zh.v = {};
 
-var L = {
+I18N.zh.l = {
   /* ---- 页面框架 ---- */
   'doc.title': 'macOS 后台项清单 (BTM) — 全字段 · 关系树',
   'h1': 'macOS 后台项清单',
@@ -421,6 +442,7 @@ var L = {
   'stat.nosign': '无签名信息',
   'stat.dup': '重复注册',
   'sub.from': '取自 {1}',
+  'sub.sep': '　·　',
   'sub.captured': '采集 {1}',
   'sub.sort': '排序口径 {1}',
   'sub.nulled': '(null) 已清空',
@@ -479,12 +501,10 @@ var L = {
   'col.persistence_zh': '机制说明'
 };
 /* ---BTM_I18N:en--- */
-var BTM_LANG = 'en';
-
 /* 数据里自带的中文枚举值 -> 英文显示。
  * 键是**数据原值**（extract 阶段算出来的中文标签），只在显示时替换，
  * 数据文件与页面右上角的 CSV 导出都保持原值。 */
-var V = {
+I18N.en.v = {
   /* 列分组 */
   '记录组': 'Record group',
   '身份': 'Identity',
@@ -540,7 +560,7 @@ var V = {
   '无独立可执行文件': 'No separate executable'
 };
 
-var L = {
+I18N.en.l = {
   /* ---- Page chrome ---- */
   'doc.title': 'macOS Background Items (BTM) — full fields · relationship trees',
   'h1': 'macOS Background Items',
@@ -729,6 +749,7 @@ var L = {
   'stat.nosign': 'Unsigned',
   'stat.dup': 'Duplicates',
   'sub.from': 'from {1}',
+  'sub.sep': ' · ',
   'sub.captured': 'captured {1}',
   'sub.sort': 'row order {1}',
   'sub.nulled': '(null) cleared',
@@ -787,6 +808,40 @@ var L = {
   'col.persistence_zh': 'Mechanism description'
 };
 /* ===BTM_I18N_END=== */
+
+/* ------------------------------------------------------------------ 界面语言：运行时状态
+ * 默认语言依次取：用户上次的手动选择（localStorage）→ 浏览器语言 → en。
+ * 只有 zh 开头（zh / zh-CN / zh-Hans-CN / zh-TW / zh_CN …）算中文，其余一律英文。 */
+var LANGKEY = 'btm.lang';
+
+function normLang(s){
+  return /^zh([-_]|$)/i.test(String(s == null ? '' : s).trim()) ? 'zh' : 'en';
+}
+function detectLang(){
+  var saved = null;
+  try { saved = localStorage.getItem(LANGKEY); } catch(e){}
+  if (saved === 'zh' || saved === 'en') return saved;
+  var nav = (navigator.languages && navigator.languages.length)
+    ? navigator.languages[0] : (navigator.language || navigator.userLanguage);
+  return normLang(nav || 'en');
+}
+
+/* L / V 是**可重新赋值**的当前语言视图，T() / show() / colLabel() 都读它们，
+ * 所以切语言只要换掉这两个引用再重画，不需要刷新页面。 */
+var BTM_LANG = detectLang();
+var L = I18N[BTM_LANG].l;
+var V = I18N[BTM_LANG].v;
+
+/* 切换界面语言：记住选择 -> 重画。视图、筛选、列选择、树展开状态都保留。 */
+function setLang(lang){
+  if (lang !== 'zh' && lang !== 'en') return;
+  if (lang === BTM_LANG) return;
+  BTM_LANG = lang;
+  L = I18N[lang].l;
+  V = I18N[lang].v;
+  try { localStorage.setItem(LANGKEY, lang); } catch(e){}
+  applyLang();
+}
 
 /* 取界面文案：'key' 或带 {1}{2}… 占位符的模板。缺失时返回键名本身，
  * 便于一眼看出漏翻/写错的键，而不是静默显示成空白。 */
@@ -1456,8 +1511,14 @@ function openDetail(it){
     + (it.dup_group ? ' <span class="b dup">' + esc(T('dup', it.dup_group)) + '</span>' : '')
     + '</div>');
 
-  GROUPS.concat(['未预置字段', '其它']).forEach(function(g, gi){
-    if (gi > 0 && GROUPS.indexOf(g) >= 0) return;
+  /* 按组列出这条记录的全部非空字段。
+   * 注意这里曾经是 `if (gi > 0 && GROUPS.indexOf(g) >= 0) return;` —— 它会跳过 GROUPS 里
+   * 除第一个以外的**所有**组，于是详情面板只剩「记录组」一组、其余 40 多个字段都看不到。
+   * 正确语义是「同一个组只处理一次」，即下面这个写法。 */
+  var doneG = {};
+  GROUPS.concat(['未预置字段', '其它']).forEach(function(g){
+    if (doneG[g]) return;
+    doneG[g] = 1;
     var cols = ALLCOLS.filter(function(c){ return colGrp(c) === g && !isNullish(it[c]) && it[c] !== false; });
     if (!cols.length) return;
     h.push('<div class="gtitle">' + esc(show(g)) + '</div><table>');
@@ -1641,11 +1702,11 @@ function setView(v){
   if (v === 'help') renderHelp();
 }
 
-/* ------------------------------------------------------------------ 初始化 */
-(function init(){
-  localizeDom();
-
-  var DS = BTM_LANG === 'en' ? ' · ' : '　·　';
+/* ------------------------------------------------------------------ 语言相关的重画
+ * 切语言时**只**调用 applyLang()，不重新加载页面。
+ * 它一个 S.* 都不改，所以当前视图、筛选、排序、列选择、树的展开状态全部保留。 */
+function refreshHeader(){
+  var DS = T('sub.sep');
   var sub = T('sub.from', DATA.source_file);
   sub += DS + T('sub.captured', DATA.captured_at);
   sub += DS + T('sub.sort', show(DATA.sort_preset));
@@ -1663,35 +1724,72 @@ function setView(v){
     + chip('stat.on', nOn)
     + chip('stat.nosign', nNoSign)
     + chip('stat.dup', nDup);
+}
 
-  // 记录组 / 机制 下拉
+/* 三个下拉里含文案的选项随语言重建，当前选中值原样保留。
+ * （静态标记里的 data-t 由 localizeDom 处理，这里只管运行时生成的 option。） */
+function refreshSelects(){
   var fu = document.getElementById('fUid');
+  fu.innerHTML = '';
+  var oU = document.createElement('option');
+  oU.value = ''; oU.textContent = T('f.alluid');
+  fu.appendChild(oU);
   SECTIONS.forEach(function(s){
     var o = document.createElement('option');
     o.value = String(s.uid);
     o.textContent = T('f.uidopt', s.uid, s.item_count);
     fu.appendChild(o);
   });
+  fu.value = S.uid;
+
   var fm = document.getElementById('fMech');
+  fm.innerHTML = '';
+  var oM = document.createElement('option');
+  oM.value = ''; oM.textContent = T('f.allmech');
+  fm.appendChild(oM);
   activeMechs().forEach(function(m){
     var o = document.createElement('option');
-    o.value = m; o.textContent = m;
+    o.value = m; o.textContent = m;      // 机制名是数据原值，不翻译
     fm.appendChild(o);
   });
+  fm.value = S.mech;
 
-  // 关系树下拉
   var tm = document.getElementById('treeMode');
+  tm.innerHTML = '';
   TREEMODE_ORDER.forEach(function(k){
     var o = document.createElement('option');
     o.value = k; o.textContent = T('tree.' + k + '.t');
     tm.appendChild(o);
   });
   tm.value = S.treeMode;
+}
 
-  // 列
+function syncLangSwitcher(){
+  Array.prototype.forEach.call(document.querySelectorAll('#langsw button'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-lang') === BTM_LANG);
+  });
+}
+
+function applyLang(){
+  if (document.documentElement) document.documentElement.setAttribute('lang', BTM_LANG === 'zh' ? 'zh-CN' : 'en');
+  document.title = T('doc.title');
+  localizeDom();
+  refreshHeader();
+  refreshSelects();
+  syncLangSwitcher();
+  var cp = document.getElementById('colpanel');
+  if (!cp.classList.contains('hidden')) renderColPanel();
+  setView(S.view);
+  if (S.sel) openDetail(S.sel);
+}
+
+/* ------------------------------------------------------------------ 初始化 */
+(function init(){
+  // 列（本机浏览器记忆；模板新增列会自动补上）
   S.cols = loadCols();
 
   // 事件
+  var fu = document.getElementById('fUid'), fm = document.getElementById('fMech'), tm = document.getElementById('treeMode');
   var qi = document.getElementById('q'), deb = null;
   qi.addEventListener('input', function(){
     clearTimeout(deb);
@@ -1726,8 +1824,13 @@ function setView(v){
       Array.prototype.forEach.call(document.querySelectorAll('#tb tr'), function(tr){ tr.classList.remove('sel'); }); }
   });
 
-  renderColPanel();
-  setView('table');
+  // 语言切换器（「中文 / English」是语言自称，刻意不参与翻译）
+  Array.prototype.forEach.call(document.querySelectorAll('#langsw button'), function(b){
+    b.onclick = function(){ setLang(b.getAttribute('data-lang')); };
+  });
+
+  // 首次按「记忆 → 浏览器语言」定下来的语言整页画一遍（含当前视图）
+  applyLang();
 })();
 </script>
 </body>

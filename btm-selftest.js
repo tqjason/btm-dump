@@ -6,11 +6,11 @@
  * 覆盖：表格渲染 / 排序 / 筛选 / 列面板 / 8 棵关系树 / 折叠 / 详情面板 / 字段说明 / 视图切换。
  *
  * 用法：
- *   node btm-selftest.js <快照目录>/btm_items.html     # 渲染自检（中文版、纯英文版都能跑）
+ *   node btm-selftest.js <快照目录>/btm_items.html     # 页面自检（含语言切换复检）
  *   node btm-selftest.js --i18n btm-view.tpl.html      # 只查双语字典：键位一致 + 引用完整
  *
- * 断言一律从当前数据与当前语言的字典推导，不写死任何一种语言的文案，
- * 所以同一份测试对 zh（中英对照）与 en（纯英文）两种渲染同样成立。
+ * 断言一律从当前数据与当前语言的字典推导，不写死任何一种语言的文案。
+ * 主体跑页面默认语言（由桩的 navigator 决定 = zh），末尾再切到 en 复检一遍。
  *
  * 注意：这不是工具链的一部分，正常使用 btm.sh 完全不需要 Node。
  */
@@ -28,19 +28,21 @@ if (process.argv[2] === '--i18n') {
   if (!m) { console.error('✗ 模板里找不到主脚本块：' + tpl); process.exit(1); }
   const js = m[1];
 
-  const cut = (lang) => {
-    const i = js.indexOf('/* ---BTM_I18N:' + lang + '--- */');
-    const j = lang === 'zh' ? js.indexOf('/* ---BTM_I18N:en--- */') : js.indexOf('/* ===BTM_I18N_END=== */');
-    if (i < 0 || j < 0) throw new Error('模板里找不到 ' + lang + ' 语言块标记');
-    return js.slice(i, j);
-  };
+  // 双语字典块整体就是合法 JS（/* ===BTM_I18N_*=== */ 与 /* ---BTM_I18N:xx--- */ 都是注释），
+  // 直接整段求值拿到 I18N，不必再按标记切片。
+  const i = js.indexOf('/* ===BTM_I18N_BEGIN=== */');
+  const j = js.indexOf('/* ===BTM_I18N_END=== */');
+  if (i < 0 || j < 0) { console.error('✗ 模板里找不到 BTM_I18N_BEGIN / BTM_I18N_END 标记'); process.exit(1); }
   const box = {};
   vm.createContext(box);
-  const dicts = {};
-  for (const lang of ['zh', 'en']) {
-    vm.runInContext(cut(lang) + '\n; this.__L = L; this.__V = V;', box);
-    dicts[lang] = { L: box.__L, V: box.__V };
+  try { vm.runInContext(js.slice(i, j) + '\n; this.__I = I18N;', box); }
+  catch (e) { console.error('✗ 字典块不是合法 JS：' + e.message); process.exit(1); }
+  const I = box.__I || {};
+  if (!I.zh || !I.zh.l || !I.en || !I.en.l) {
+    console.error('✗ 字典块里缺 I18N.zh.l 或 I18N.en.l（页面将无法切换语言）');
+    process.exit(1);
   }
+  const dicts = { zh: { L: I.zh.l, V: I.zh.v || {} }, en: { L: I.en.l, V: I.en.v || {} } };
 
   let n = 0;
   const fail = (s) => { n++; console.log('  ✗ ' + s); };
@@ -107,7 +109,10 @@ const store = {};
 const sandbox = {
   console, setTimeout, clearTimeout, Date, JSON, Math, Object, Array, String, Number,
   parseInt, parseFloat, isNaN, RegExp, Error, Boolean,
+  navigator: { language: 'zh-CN', languages: ['zh-CN', 'zh'] },   // 桩的默认语言 = zh
   document: {
+    documentElement: { setAttribute() {}, getAttribute() { return null; } },
+    title: '',
     getElementById(id) {
       if (id === 'btm-data') return { textContent: data };
       if (!cache[id]) cache[id] = el(id);
@@ -117,7 +122,11 @@ const sandbox = {
     addEventListener() {}, createElement() { return el('x'); },
     body: { appendChild() {}, removeChild() {} }
   },
-  localStorage: { getItem(k) { return store[k] || null; }, setItem(k, v) { store[k] = v; } },
+  localStorage: {
+    getItem(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+    setItem(k, v) { store[k] = v; },
+    removeItem(k) { delete store[k]; }
+  },
   Blob: function () {}, URL: { createObjectURL() { return ''; } }
 };
 sandbox.window = sandbox;
@@ -252,6 +261,28 @@ try {
 S.treeCollapse = false;
 try { for (let i = 0; i < ITEMS.length; i++) sandbox.openDetail(ITEMS[i]); pass('详情面板渲染全部 ' + ITEMS.length + ' 条'); }
 catch (e) { bad('详情面板', e.message); }
+
+/* 详情面板必须把该条记录**所有**分组的非空字段都列出来。
+ * 这是一条回归测试：历史实现写成 `if (gi > 0 && GROUPS.indexOf(g) >= 0) return;`，
+ * 它会跳过 GROUPS 里除第一个以外的全部组 —— 面板只剩「记录组」一组、
+ * 其余 40 多个字段静默消失，而且界面看起来完全正常，没人会发现。
+ * 断言按「分组数」而非「字段数」比对，所以加列、改分组都不会误报。 */
+try {
+  let checked = 0, worstG = Infinity;
+  ITEMS.forEach(it => {
+    const want = new Set();
+    sandbox.ALLCOLS.forEach(c => { if (!sandbox.isNullish(it[c]) && it[c] !== false) want.add(sandbox.colGrp(c)); });
+    sandbox.openDetail(it);
+    const html = cache['detail'].innerHTML;
+    const href = [...html.matchAll(/class="gtitle">[^<]*</g)].length;
+    const rows = (html.match(/<tr>/g) || []).length;
+    checked++;
+    if (want.size < worstG) worstG = want.size;
+    if (href !== want.size) bad('详情「' + (it.identifier || it.name) + '」只列了 ' + href + ' 组，实际有值的组有 ' + want.size + ' 个');
+    else if (rows < want.size) bad('详情「' + (it.identifier || it.name) + '」字段行 ' + rows + ' 少于分组数 ' + want.size);
+  });
+  pass('详情面板逐条覆盖全部有值分组（' + checked + ' 条，单条最少 ' + worstG + ' 组）');
+} catch (e) { bad('详情面板分组完整性', e.message); }
 try { sandbox.renderHelp(); pass('字段说明页'); }
 catch (e) { bad('字段说明页', e.message); }
 try { ['table', 'tree', 'help'].forEach(v => sandbox.setView(v)); pass('视图切换'); }
@@ -286,11 +317,11 @@ if (stats['embedded']) {
   else pass('嵌入树：标出了「自述父级与嵌入声明不一致」的条目');
 }
 
-/* ⑥⑦ 两棵位置树：必须真的按「配置 / 可执行」分开，并覆盖各自的类别 */
-(function () {
-  const cfg = stats['config'] && stats['config'].html;
-  const exe = stats['exec'] && stats['exec'].html;
-  if (!cfg || !exe) { bad('位置树缺失'); return; }
+/* ⑥⑦ 两棵位置树：必须真的按「配置 / 可执行」分开，并覆盖各自的类别。
+ * 抽成函数是因为这条检查对英文标签格外敏感 —— 英文类别名 "Application Support"
+ * 会撞上目录路径 /Library/Application Support/…，所以两种语言都要各验一遍。 */
+function checkLocTrees(cfg, exe, tag){
+  if (!cfg || !exe) { bad(tag + '位置树缺失'); return; }
 
   // ① 两棵树的数据源必须不同：配置树的类别取自 config_kind 列、可执行树取自 exec_scope 列。
   //    「该出现哪些类别」由当前数据推导，因此换一台机器、换一份快照同样成立。
@@ -308,9 +339,9 @@ if (stats['embedded']) {
     new RegExp('<span class="tlabel gnode">' + rxEsc(show(raw)) + '</span>').test(html);
   const missCfg = cfgKinds.filter(k => !hasKind(cfg, k));
   const missExe = exeKinds.filter(k => !hasKind(exe, k));
-  if (missCfg.length) bad('配置树缺类别：' + missCfg.join('、'));
-  else if (missExe.length) bad('可执行树缺类别：' + missExe.join('、'));
-  else pass('两棵位置树类别齐备（配置 ' + cfgKinds.length + ' 类 / 可执行 ' + exeKinds.length + ' 类，取自数据列）');
+  if (missCfg.length) bad(tag + '配置树缺类别：' + missCfg.join('、'));
+  else if (missExe.length) bad(tag + '可执行树缺类别：' + missExe.join('、'));
+  else pass(tag + '两棵位置树类别齐备（配置 ' + cfgKinds.length + ' 类 / 可执行 ' + exeKinds.length + ' 类，取自数据列）');
 
   // ② 类别不得串台：配置树里不该出现只属于可执行的类别，反之亦然。
   //    这是"两棵树确实建立在两个不同字段上"的硬证据。
@@ -319,9 +350,9 @@ if (stats['embedded']) {
   const leakInExe = cfgOnly.filter(k => hasKind(exe, k));
   const leakInCfg = exeOnly.filter(k => hasKind(cfg, k));
   if (leakInExe.length || leakInCfg.length) {
-    bad('两棵树类别串台：可执行树混入 ' + (leakInExe.join('、') || '无') + '；配置树混入 ' + (leakInCfg.join('、') || '无'));
+    bad(tag + '两棵树类别串台：可执行树混入 ' + (leakInExe.join('、') || '无') + '；配置树混入 ' + (leakInCfg.join('、') || '无'));
   } else {
-    pass('两棵树互不串台：配置类别只出现在⑥，可执行类别只出现在⑦');
+    pass(tag + '两棵树互不串台：配置类别只出现在⑥，可执行类别只出现在⑦');
   }
 
   // ③ 桶的归属必须与数据吻合：无配置路径 = URL 为 (null) 的条数，无独立可执行文件 = 没有 Executable Path 的条数
@@ -336,11 +367,119 @@ if (stats['embedded']) {
     return m ? parseInt(m[1], 10) : -1;
   };
   const bCfg = bucket(cfg, '无配置路径'), bExe = bucket(exe, '无独立可执行文件');
-  if (bCfg !== noUrl) bad('⑥「无配置路径」桶 ' + bCfg + ' ≠ URL 为 (null) 的 ' + noUrl + ' 条');
-  else if (bExe !== noExec) bad('⑦「无独立可执行文件」桶 ' + bExe + ' ≠ 无 Executable Path 的 ' + noExec + ' 条');
-  else pass('桶归属吻合：⑥无配置路径 ' + bCfg + ' 条 / ⑦无独立可执行文件 ' + bExe + ' 条（各自有落点的 '
+  if (bCfg !== noUrl) bad(tag + '⑥「无配置路径」桶 ' + bCfg + ' ≠ URL 为 (null) 的 ' + noUrl + ' 条');
+  else if (bExe !== noExec) bad(tag + '⑦「无独立可执行文件」桶 ' + bExe + ' ≠ 无 Executable Path 的 ' + noExec + ' 条');
+  else pass(tag + '桶归属吻合：⑥无配置路径 ' + bCfg + ' 条 / ⑦无独立可执行文件 ' + bExe + ' 条（各自有落点的 '
     + (ITEMS.length - bCfg) + ' 与 ' + (ITEMS.length - bExe) + ' 条）');
+}
+
+checkLocTrees(stats['config'] && stats['config'].html, stats['exec'] && stats['exec'].html, '');
+
+/* ==================================================================
+ * 语言切换：一个 HTML 要同时装得下两种形态
+ *
+ * 主体断言跑的是页面默认语言（桩的 navigator = zh-CN）。
+ * 这里在同一个已加载的页面里切到 en 再验一遍。重点不是重跑全部逻辑
+ * —— 树的构建、桶归属、类别齐备都与语言无关，跑一遍就够 ——
+ * 而是三件「只有切换才暴露」的事：
+ *   1. 视图状态不被切换重置（筛选/排序/列选择/树展开），且选择被记住
+ *   2. en 形态下所有视图的**可见文案零中文**（语言切换器按钮除外，那是语言自称）
+ *   3. 位置树的类别标签在英文下仍对得上（历史上英文标签撞过目录路径）
+ * ================================================================== */
+console.log('');
+console.log('—— 语言切换 ——');
+
+const CJK = /[\u3400-\u9fff\u3000-\u303f\uff00-\uffef]/;
+const cjkSample = (s) => {
+  const i = s.search(CJK);
+  return i < 0 ? null : JSON.stringify(s.slice(Math.max(0, i - 30), i + 30));
+};
+
+/* 英文形态扫描前，先把**数据原值**剥掉 —— 软件名、路径、开发者名这些本来就不该被翻译，
+ * 一台机器上装个中文名的应用（「坚果云」「UU远程」…）并不代表页面漏翻。
+ * 但 V 映射表里列出的那些枚举值必须留在扫描范围内：它们**应该**被换成英文，
+ * 漏翻就是要报错的（详情面板忘记调 show() 的历史 bug 正是靠这条抓出来的）。
+ * 也就是说「哪些中文算数据、哪些算界面」不是写死的，而是从页面自己的映射表推出来的。 */
+const TRANSLATED = new Set(Object.keys(sandbox.I18N.en.v));
+const DATA_VALUES = (() => {
+  const set = new Set();
+  const add = (v) => { if (typeof v === 'string' && v.length >= 2 && !TRANSLATED.has(v)) set.add(v); };
+  ITEMS.forEach(it => sandbox.ALLCOLS.forEach(c => {
+    const v = it[c];
+    if (Object.prototype.toString.call(v) === '[object Array]') v.forEach(add); else add(v);
+  }));
+  [sandbox.DATA.source_file, sandbox.DATA.captured_at, sandbox.DATA.host, sandbox.DATA.sort_preset].forEach(add);
+  return Array.from(set).sort((a, b) => b.length - a.length);   // 长值先替，避免短值先把长值切碎
 })();
+const stripData = (html) => {
+  let s = html;
+  for (const v of DATA_VALUES) s = s.split(sandbox.esc(v)).join('\u00a7');
+  return s;
+};
+
+try {
+  if (sandbox.BTM_LANG !== 'zh') throw new Error('桩的默认语言应为 zh，实际为 ' + sandbox.BTM_LANG);
+
+  // 先摆一个「非默认」状态，切语言后必须原样保留
+  S.view = 'tree'; S.q = qProbe; S.status = 'enabled'; S.treeMode = 'config';
+  S.cols = ['uid', 'name', 'identifier_base']; S.treeCollapse = false; S.open = {};
+  sandbox.renderTree();
+  const toOpen = cache['treewrap'].querySelectorAll('.trow')
+    .filter(r => r.getAttribute('data-kids') === '1')[0];
+  if (!toOpen) throw new Error('找不到可展开的节点，无法验证展开状态是否保留');
+  toOpen.onclick();
+  const openBefore = JSON.stringify(S.open);
+  const statusBefore = S.status, colsBefore = S.cols.join(','), qBefore = S.q;
+
+  sandbox.setLang('en');
+  if (sandbox.BTM_LANG !== 'en') throw new Error('BTM_LANG 没切成 en');
+  if (sandbox.L !== sandbox.I18N.en.l) throw new Error('L 没有指向 en 字典');
+  if (sandbox.V !== sandbox.I18N.en.v) throw new Error('V 没有指向 en 映射表');
+  if (sandbox.document.title !== sandbox.I18N.en.l['doc.title']) throw new Error('document.title 没跟着换');
+
+  if (S.view !== 'tree') throw new Error('视图被切换重置');
+  if (S.q !== qBefore || S.status !== statusBefore) throw new Error('筛选条件被切换重置');
+  if (S.cols.join(',') !== colsBefore) throw new Error('列选择被切换重置');
+  if (JSON.stringify(S.open) !== openBefore) throw new Error('树的展开状态被切换重置');
+  if (store['btm.lang'] !== 'en') throw new Error('语言选择没写进 localStorage');
+  pass('切到 en：视图/筛选/列选择/树展开全部保留，选择已记入 localStorage');
+
+  // en 形态逐视图扫描可见文案
+  S.treeCollapse = false;
+  const views = {};
+  ['parent', 'embedded', 'bundle', 'scope', 'vendor', 'config', 'exec', 'generation'].forEach(m => {
+    S.treeMode = m; S.open = {}; sandbox.renderTree(); views['树 ' + m] = cache['treewrap'].innerHTML;
+  });
+  sandbox.renderTable(); views['表格'] = cache['tablewrap'].innerHTML;
+  sandbox.renderColPanel(); views['列面板'] = cache['colpanel'].innerHTML;
+  sandbox.renderHelp(); views['字段说明'] = cache['help'].innerHTML;
+  views['页头'] = cache['stat'].innerHTML + cache['sub'].textContent + cache['orderHint'].innerHTML;
+
+  let leak = 0, details = 0;
+  Object.keys(views).forEach(k => {
+    const b = cjkSample(stripData(views[k]));
+    if (b) { leak++; bad('en 形态「' + k + '」含中文/全角：' + b); }
+  });
+  S.sel = null;
+  ITEMS.forEach(it => {
+    sandbox.openDetail(it); details++;
+    const b = cjkSample(stripData(cache['detail'].innerHTML));
+    if (b) { leak++; if (leak <= 5) bad('en 形态 详情「' + (it.name || it.identifier_base) + '」含中文：' + b); }
+  });
+  if (!leak) pass('en 形态：' + Object.keys(views).length + ' 个视图 + ' + details + ' 条详情，界面文案零中文/零全角'
+    + '（已剥除 ' + DATA_VALUES.length + ' 个数据原值）');
+
+  // 位置树的类别归属在英文下同样成立
+  checkLocTrees(views['树 config'], views['树 exec'], 'en 形态 ');
+
+  // 切回中文
+  sandbox.setLang('zh');
+  if (sandbox.BTM_LANG !== 'zh') throw new Error('切不回 zh');
+  sandbox.renderHelp();
+  if (!CJK.test(cache['help'].innerHTML)) throw new Error('zh 形态的字段说明里没有中文，字典可能没换回来');
+  if (store['btm.lang'] !== 'zh') throw new Error('切回 zh 后 localStorage 没更新');
+  pass('切回 zh：文案恢复中文，往返切换可用');
+} catch (e) { bad('语言切换', e.message); }
 
 console.log(fail === 0 ? '\n全部通过' : '\n失败 ' + fail + ' 项');
 process.exit(fail === 0 ? 0 : 1);

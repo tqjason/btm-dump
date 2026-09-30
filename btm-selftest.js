@@ -6,16 +6,80 @@
  * 覆盖：表格渲染 / 排序 / 筛选 / 列面板 / 8 棵关系树 / 折叠 / 详情面板 / 字段说明 / 视图切换。
  *
  * 用法：
- *   node btm-selftest.js <快照目录>/btm_items.html
+ *   node btm-selftest.js <快照目录>/btm_items.html     # 渲染自检（中文版、纯英文版都能跑）
+ *   node btm-selftest.js --i18n btm-view.tpl.html      # 只查双语字典：键位一致 + 引用完整
+ *
+ * 断言一律从当前数据与当前语言的字典推导，不写死任何一种语言的文案，
+ * 所以同一份测试对 zh（中英对照）与 en（纯英文）两种渲染同样成立。
  *
  * 注意：这不是工具链的一部分，正常使用 btm.sh 完全不需要 Node。
  */
 
 'use strict';
-const fs = require('fs'), vm = require('vm');
+const fs = require('fs'), vm = require('vm'), path = require('path');
+
+/* ------------------------------------------------------------------
+ * --i18n：模板双语字典的一致性检查（不需要快照，直接查模板源文件）
+ * ------------------------------------------------------------------ */
+if (process.argv[2] === '--i18n') {
+  const tpl = process.argv[3] || path.join(__dirname, 'btm-view.tpl.html');
+  const src = fs.readFileSync(tpl, 'utf8');
+  const m = src.match(/<script>\n([\s\S]*?)\n<\/script>/);
+  if (!m) { console.error('✗ 模板里找不到主脚本块：' + tpl); process.exit(1); }
+  const js = m[1];
+
+  const cut = (lang) => {
+    const i = js.indexOf('/* ---BTM_I18N:' + lang + '--- */');
+    const j = lang === 'zh' ? js.indexOf('/* ---BTM_I18N:en--- */') : js.indexOf('/* ===BTM_I18N_END=== */');
+    if (i < 0 || j < 0) throw new Error('模板里找不到 ' + lang + ' 语言块标记');
+    return js.slice(i, j);
+  };
+  const box = {};
+  vm.createContext(box);
+  const dicts = {};
+  for (const lang of ['zh', 'en']) {
+    vm.runInContext(cut(lang) + '\n; this.__L = L; this.__V = V;', box);
+    dicts[lang] = { L: box.__L, V: box.__V };
+  }
+
+  let n = 0;
+  const fail = (s) => { n++; console.log('  ✗ ' + s); };
+  const kz = Object.keys(dicts.zh.L).sort(), ke = Object.keys(dicts.en.L).sort();
+  console.log('字典：zh ' + kz.length + ' 键　en ' + ke.length + ' 键');
+  const missEn = kz.filter(k => ke.indexOf(k) < 0), missZh = ke.filter(k => kz.indexOf(k) < 0);
+  if (missEn.length) fail('en 缺少这些键：' + missEn.join(', '));
+  if (missZh.length) fail('zh 缺少这些键：' + missZh.join(', '));
+  if (!missEn.length && !missZh.length) console.log('  ✓ 两份字典键位一一对应');
+
+  // 代码里引用到的键都必须有定义（'x.' 结尾的是动态前缀，如 T('tree.' + k + '.t')）
+  const isDyn = k => k.endsWith('.') || k.endsWith('<dynamic>');
+  const used = new Set([...js.matchAll(/\bT\(\s*'([^']+)'/g)].map(x => x[1]));
+  [...js.matchAll(/\bT\(\s*'([^']+)'\s*\+/g)].forEach(x => used.add(x[1] + '<dynamic>'));
+  const unknown = [...used].filter(k => !isDyn(k) && kz.indexOf(k) < 0);
+  if (unknown.length) fail('代码引用了字典里没有的键：' + unknown.join(', '));
+  else console.log('  ✓ 代码引用的 ' + (used.size - [...used].filter(isDyn).length) + ' 个键都有定义');
+
+  // 漏翻检查：两边的值都不能是空串，也不能一模一样（分隔符类短串除外）
+  for (const lang of ['zh', 'en']) {
+    Object.keys(dicts[lang].L).forEach(k => {
+      if (dicts[lang].L[k] === '') fail(lang + ' 的 ' + k + ' 是空串');
+    });
+  }
+  // en 侧不允许出现中日韩字符与全角标点 —— 它们会在英文页面上留下中文痕迹
+  const cjk = /[\u3400-\u9fff\u3000-\u303f\uff00-\uffef]/;
+  let cjkHit = 0;
+  for (const lang of ['en']) {
+    for (const k of Object.keys(dicts[lang].L)) if (cjk.test(dicts[lang].L[k])) { cjkHit++; fail('en 的 ' + k + ' 含中文/全角字符'); }
+    for (const k of Object.keys(dicts[lang].V)) if (cjk.test(dicts[lang].V[k])) { cjkHit++; fail('en 的 V["' + k + '"] 含中文/全角字符'); }
+  }
+  if (!cjkHit) console.log('  ✓ en 侧字典与枚举映射零中文、零全角字符（V 共 ' + Object.keys(dicts.en.V).length + ' 条）');
+
+  console.log(n === 0 ? '\n全部通过' : '\n失败 ' + n + ' 项');
+  process.exit(n === 0 ? 0 : 1);
+}
 
 const file = process.argv[2];
-if (!file) { console.error('用法: node btm-selftest.js <btm_items.html>'); process.exit(2); }
+if (!file) { console.error('用法: node btm-selftest.js <btm_items.html>　或　node btm-selftest.js --i18n btm-view.tpl.html'); process.exit(2); }
 const html = fs.readFileSync(file, 'utf8');
 
 const dblock = html.match(/<script id="btm-data" type="application\/json">\n([\s\S]*?)\n<\/script>/);
@@ -61,7 +125,13 @@ vm.createContext(sandbox);
 try { vm.runInContext(jsblock[1], sandbox, { filename: 'btm-view.js' }); }
 catch (e) { console.error('✗ 页面脚本执行失败：' + e.message); process.exit(1); }
 
-const S = sandbox.S, ITEMS = sandbox.ITEMS;
+const S = sandbox.S, ITEMS = sandbox.ITEMS, SECTIONS = sandbox.SECTIONS;
+/* 直接借用页面自己的字典与取值映射来推导「当前语言的期望文案」，
+ * 这样同一份断言对 zh（中英对照）与 en（纯英文）两种渲染都成立。 */
+const T = sandbox.T, show = sandbox.show, uidGroupLabel = sandbox.uidGroupLabel;
+const rxEsc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/* 字典模板里占位符之前的字面前缀，用来断言「这句话出现过」而不写死整句 */
+const literalHead = k => { const s = sandbox.L[k]; const i = s.indexOf('{'); return i < 0 ? s : s.slice(0, i); };
 let fail = 0;
 const count = (s, re) => (s.match(re) || []).length;
 const pass = (m) => console.log('  ✓ ' + m);
@@ -191,7 +261,8 @@ catch (e) { bad('视图切换', e.message); }
 if (stats['parent']) {
   const p = stats['parent'].html;
   const dev = ITEMS.filter(it => String(it.type_mechanism) === 'developer')[0];
-  if (p.indexOf('记录组 UID') < 0) bad('归属树缺记录组层级');
+  const grpLabel = SECTIONS.length ? uidGroupLabel(SECTIONS[0].uid) : '';
+  if (!grpLabel || p.indexOf(grpLabel) < 0) bad('归属树缺记录组层级（期望「' + grpLabel + '」）');
   else if (dev && p.indexOf(String(dev.identifier)) < 0) bad('归属树缺开发者父节点');
   else pass('归属树：含记录组层级与开发者父节点');
 }
@@ -211,7 +282,7 @@ if (stats['embedded']) {
   });
   const h = stats['embedded'].html;
   if (!hasMismatch) pass('嵌入树：本次数据两向自洽，无需标注不一致');
-  else if (h.indexOf('与嵌入声明方不一致') < 0) bad('嵌入树没标出「自述父级不一致」');
+  else if (h.indexOf(literalHead('tree.embed.mismatch')) < 0) bad('嵌入树没标出「自述父级不一致」');
   else pass('嵌入树：标出了「自述父级与嵌入声明不一致」的条目');
 }
 
@@ -230,8 +301,13 @@ if (stats['embedded']) {
   };
   const cfgKinds = kindSet('config_kind');
   const exeKinds = kindSet('exec_scope');
-  const missCfg = cfgKinds.filter(k => cfg.indexOf(k) < 0);
-  const missExe = exeKinds.filter(k => exe.indexOf(k) < 0);
+  /* 判定「某类别出现在这棵树里」必须匹配**分组标签元素**，不能用裸子串：
+   * 英文标签 "Application Support" 会正好撞上目录路径 /Library/Application Support/…，
+   * 裸子串判定会把配置树里的一条普通路径误报成「串台」。 */
+  const hasKind = (html, raw) =>
+    new RegExp('<span class="tlabel gnode">' + rxEsc(show(raw)) + '</span>').test(html);
+  const missCfg = cfgKinds.filter(k => !hasKind(cfg, k));
+  const missExe = exeKinds.filter(k => !hasKind(exe, k));
   if (missCfg.length) bad('配置树缺类别：' + missCfg.join('、'));
   else if (missExe.length) bad('可执行树缺类别：' + missExe.join('、'));
   else pass('两棵位置树类别齐备（配置 ' + cfgKinds.length + ' 类 / 可执行 ' + exeKinds.length + ' 类，取自数据列）');
@@ -240,8 +316,8 @@ if (stats['embedded']) {
   //    这是"两棵树确实建立在两个不同字段上"的硬证据。
   const cfgOnly = ['系统守护进程配置', '全局代理配置', '用户代理配置', '应用包内嵌组件'];
   const exeOnly = ['系统特权 Helper', '系统应用支持目录', '本地安装目录（/usr/local）', '应用包内（Contents/MacOS）'];
-  const leakInExe = cfgOnly.filter(k => exe.indexOf(k) >= 0);
-  const leakInCfg = exeOnly.filter(k => cfg.indexOf(k) >= 0);
+  const leakInExe = cfgOnly.filter(k => hasKind(exe, k));
+  const leakInCfg = exeOnly.filter(k => hasKind(cfg, k));
   if (leakInExe.length || leakInCfg.length) {
     bad('两棵树类别串台：可执行树混入 ' + (leakInExe.join('、') || '无') + '；配置树混入 ' + (leakInCfg.join('、') || '无'));
   } else {
@@ -252,8 +328,11 @@ if (stats['embedded']) {
   const nul = sandbox.isNullish;
   const noUrl = ITEMS.filter(it => nul(it.url_path) || it.url_path === '(null)').length;
   const noExec = ITEMS.filter(it => nul(it.executable_path) || it.executable_path === '(null)').length;
-  const bucket = (html, label) => {
-    const m = html.match(new RegExp('<span class="tlabel gnode">' + label + '</span><span class="gcount">(\\d+) 项'));
+  // 「N 项」的计数后缀也取自字典（中文「 项」/ 英文「 items」），否则换语言就对不上
+  const bucket = (html, rawLabel) => {
+    const label = show(rawLabel);
+    const m = html.match(new RegExp('<span class="tlabel gnode">' + rxEsc(label)
+      + '</span><span class="gcount">' + T('items', '(\\d+)')));
     return m ? parseInt(m[1], 10) : -1;
   };
   const bCfg = bucket(cfg, '无配置路径'), bExe = bucket(exe, '无独立可执行文件');

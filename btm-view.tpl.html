@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="<!--BTM_HTMLLANG-->">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>macOS 后台项清单 (BTM) — 全字段 · 关系树</title>
+<title><!--BTM_TITLE--></title>
 <style>
 :root{
   --bg:#0e1116; --panel:#161b23; --panel2:#1b2129; --line:#2a3340; --line2:#3a4553;
@@ -68,8 +68,8 @@ th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;verti
 thead th{position:sticky;top:0;background:var(--panel);color:var(--dim);font-weight:600;font-size:11.5px;
   cursor:pointer;user-select:none;border-bottom:1px solid var(--line2);z-index:3}
 thead th:hover{color:var(--txt)}
-thead th .zh{display:block}
-thead th .en{display:block;font-family:var(--mono);font-size:10px;color:var(--dim2);font-weight:400}
+thead th .lbl{display:block}
+thead th .key{display:block;font-family:var(--mono);font-size:10px;color:var(--dim2);font-weight:400}
 thead th.sorted{color:var(--accent)}
 thead th.sorted::after{content:" ▲";font-size:9px}
 thead th.sorted.desc::after{content:" ▼"}
@@ -142,48 +142,48 @@ aside#detail code{font-family:var(--mono);font-size:11.5px}
 <header>
   <div class="row1">
     <div>
-      <h1>macOS 后台项清单 <span class="badge">BTM</span></h1>
+      <h1><span data-t="h1"></span> <span class="badge">BTM</span></h1>
       <div class="sub" id="sub"></div>
     </div>
     <div class="stat" id="stat"></div>
   </div>
 
   <nav class="tabs" id="tabs">
-    <button data-v="table" class="on">表格视图</button>
-    <button data-v="tree">关系树</button>
-    <button data-v="help">字段说明</button>
+    <button data-v="table" data-t="tab.table" class="on"></button>
+    <button data-v="tree" data-t="tab.tree"></button>
+    <button data-v="help" data-t="tab.help"></button>
   </nav>
 
   <div class="tools" id="toolsTable">
-    <input type="search" id="q" placeholder="筛选：名称 / 标识符 / 路径 / 开发者 / UUID…">
+    <input type="search" id="q" data-t-ph="q.ph">
     <select id="fStatus">
-      <option value="">全部状态</option>
-      <option value="enabled">仅已启用</option>
-      <option value="disabled">仅已停用</option>
-      <option value="disallowed">仅已禁止</option>
-      <option value="notallowed">仅未禁止</option>
-      <option value="dup">仅重复注册项</option>
-      <option value="noparent">仅无父记录</option>
-      <option value="nosign">仅无签名信息</option>
+      <option value="" data-t="f.allstatus"></option>
+      <option value="enabled" data-t="f.enabled"></option>
+      <option value="disabled" data-t="f.disabled"></option>
+      <option value="disallowed" data-t="f.disallowed"></option>
+      <option value="notallowed" data-t="f.notallowed"></option>
+      <option value="dup" data-t="f.dup"></option>
+      <option value="noparent" data-t="f.noparent"></option>
+      <option value="nosign" data-t="f.nosign"></option>
     </select>
-    <select id="fUid"><option value="">全部记录组</option></select>
-    <select id="fMech"><option value="">全部机制</option></select>
+    <select id="fUid"><option value="" data-t="f.alluid"></option></select>
+    <select id="fMech"><option value="" data-t="f.allmech"></option></select>
     <div class="sep"></div>
-    <button id="btnCols">选择列 <span class="hint" id="colNum"></span></button>
-    <button id="btnCsv">导出当前视图 CSV</button>
-    <button id="btnReset">重置视图</button>
+    <button id="btnCols"><span data-t="btn.cols"></span> <span class="hint" id="colNum"></span></button>
+    <button id="btnCsv" data-t="btn.csv"></button>
+    <button id="btnReset" data-t="btn.reset"></button>
     <span class="hint" id="orderHint"></span>
     <span class="chip" id="count"></span>
   </div>
 
   <div class="tools hidden" id="toolsTree">
-    <span class="hint">关系：</span>
+    <span class="hint" data-t="lbl.relation"></span>
     <select id="treeMode"></select>
     <div class="sep"></div>
-    <label class="ck"><input type="checkbox" id="treeOnlyOn"> 只看已启用</label>
-    <label class="ck"><input type="checkbox" id="treeCollapse"> 默认折叠</label>
-    <button id="btnExpandAll">全部展开</button>
-    <button id="btnCollapseAll">全部折叠</button>
+    <label class="ck"><input type="checkbox" id="treeOnlyOn"> <span data-t="ck.onlyon"></span></label>
+    <label class="ck"><input type="checkbox" id="treeCollapse"> <span data-t="ck.collapse"></span></label>
+    <button id="btnExpandAll" data-t="btn.expandall"></button>
+    <button id="btnCollapseAll" data-t="btn.collapseall"></button>
     <span class="chip" id="countTree"></span>
   </div>
 </header>
@@ -202,6 +202,629 @@ aside#detail code{font-family:var(--mono);font-size:11.5px}
 
 <script>
 "use strict";
+
+/* ==================================================================
+ * 界面语言（i18n）
+ *
+ * 同一份模板里放两套界面文案，渲染时由 btm.sh 按 -L 指定的语言
+ * **只保留其中一套**，另一套连同外面的标记行一起被 awk 剥掉。
+ * 所以产出的 HTML 是真正单语的，文件里不会夹带另一种语言。
+ *
+ *   标记行：  /* ---BTM_I18N:zh--- *\/   ...开始一份
+ *             /* ---BTM_I18N:en--- *\/
+ *   包裹：    /* ===BTM_I18N_BEGIN=== *\/ ... /* ===BTM_I18N_END=== *\/
+ *
+ * 两种形态：
+ *   zh —— 中英对照：表格里「中文列名 + 原始列名」双行、树与说明用中文
+ *   en —— 纯英文
+ *
+ * 两条边界，注意别越界：
+ *   1. **数据文件不翻译**。tsv / csv / json 里的列名与取值永远是原样，
+ *      翻译只发生在浏览页的显示层（en 形态下界面显示英文，数据仍是原值）。
+ *   2. 数据里自带的中文枚举值（列分组、config_kind、exec_scope、
+ *      identifier_scope_zh、persistence_zh、parent_kind）也不改数据，
+ *      而是靠下文的 V（枚举值显示映射）在 en 形态下换成英文，见 show()。
+ * ================================================================== */
+/* ===BTM_I18N_BEGIN=== */
+/* ---BTM_I18N:zh--- */
+var BTM_LANG = 'zh';
+
+/* 数据枚举值的显示映射：zh 形态原样显示，故为空表 */
+var V = {};
+
+var L = {
+  /* ---- 页面框架 ---- */
+  'doc.title': 'macOS 后台项清单 (BTM) — 全字段 · 关系树',
+  'h1': 'macOS 后台项清单',
+  'tab.table': '表格视图',
+  'tab.tree': '关系树',
+  'tab.help': '字段说明',
+  'q.ph': '筛选：名称 / 标识符 / 路径 / 开发者 / UUID…',
+  'f.allstatus': '全部状态',
+  'f.enabled': '仅已启用',
+  'f.disabled': '仅已停用',
+  'f.disallowed': '仅已禁止',
+  'f.notallowed': '仅未禁止',
+  'f.dup': '仅重复注册项',
+  'f.noparent': '仅无父记录',
+  'f.nosign': '仅无签名信息',
+  'f.alluid': '全部记录组',
+  'f.allmech': '全部机制',
+  'f.uidopt': 'UID {1}（{2} 项）',
+  'btn.cols': '选择列',
+  'btn.csv': '导出当前视图 CSV',
+  'btn.reset': '重置视图',
+  'lbl.relation': '关系：',
+  'ck.onlyon': '只看已启用',
+  'ck.collapse': '默认折叠',
+  'btn.expandall': '全部展开',
+  'btn.collapseall': '全部折叠',
+
+  /* ---- 列选择面板 ---- */
+  'col.presets': '预设：',
+  'col.all': '全选',
+  'col.none': '全不选',
+  'col.reset': '恢复默认（全字段）',
+  'col.close': '收起面板',
+  'col.hint': '勾选会即时生效，并记在本机浏览器里，下次打开同一套列。',
+  'preset.all': '全字段',
+  'preset.common': '常用',
+  'preset.identity': '身份与状态',
+  'preset.relation': '关系与层级',
+  'preset.location': '配置与落点',
+  'preset.nested': '嵌套与重复',
+  'preset.minimal': '极简',
+
+  /* ---- 表格 ---- */
+  'tbl.count': '显示 <b>{1}</b> / {2} 条　·　<b>{3}</b> / {4} 列',
+  'tbl.sorted': '表格排序：<b>{1}</b> {2}',
+  'tbl.asc': '升序',
+  'tbl.desc': '降序',
+  'tbl.fileorder': '表格顺序：文件内既定顺序（{1}）',
+
+  /* ---- 通用词 ---- */
+  'grp.unset': '未预置字段',
+  'grp.other': '其它',
+  'noname': '（无名）',
+  'on': '启用',
+  'off': '停用',
+  'disallowed': '已禁止',
+  'allowed': '已允许',
+  'dup': '重复 {1}',
+  'gen': 'gen {1}',
+  'items': '{1} 项',
+  'd.close': '关闭',
+  'detail.uid': 'UID {1}（{2}）',
+  'uid.group': '记录组 UID {1}　{2}',
+  'uid.note': 'ServiceManagement migrated={1}　LaunchServices registered={2}',
+  'csv.prefix': 'btm-当前视图-',
+  'sep.list': '、',
+  'sep.cell': ' ｜ ',
+  'sep.note': '；',
+
+  /* ---- 八棵树：标题 ---- */
+  'tree.parent.t': '① 归属树（父标识符 Parent Identifier）',
+  'tree.embedded.t': '② 嵌入树（Embedded Item Identifiers）',
+  'tree.bundle.t': '③ Bundle 归组树（Bundle ID / Assoc. Bundle IDs）',
+  'tree.scope.t': '④ 作用域树（记录组 UID → 持久化机制）',
+  'tree.vendor.t': '⑤ 签名主体树（Developer Name）',
+  'tree.config.t': '⑥ 配置来源树（URL → 配置放在哪）',
+  'tree.exec.t': '⑦ 可执行落点树（Executable Path → 可执行文件落在哪）',
+  'tree.generation.t': '⑧ 代数分组（Generation，非层级）',
+
+  /* ---- 八棵树：说明 ---- */
+  'tree.parent.d': '把每条记录的「父标识符」指向的那条记录作为父节点。父记录通常是 Type 为 developer 的开发者记录（如 Example Corp、Acme Inc），也可能是某个应用条目（如 2.com.example.toolbox）。同一条目只会挂在第一个匹配的父节点下；父记录没有出现在本次快照里时，该条目作为顶层节点保留，并标注「父记录未登记」。',
+  'tree.embedded.d': '按记录自身列出的「嵌入项标识符」建立父子关系：这条记录的 Embedded Item Identifiers 里写了谁，谁就是它的子节点。它与①方向相反、集合也不完全重合 —— 两者差异本身就是线索。',
+  'tree.bundle.d': '按 Bundle ID 归堆：优先用记录自己的 Bundle Identifier，没有就退回到标识符基名或 Assoc. Bundle IDs 的第一个值。同一 Bundle 的应用条目、代理、守护进程会聚到一起。',
+  'tree.scope.d': '还原 dump 的三层结构：记录组（UID -2 / 0 / 501）→ 持久化机制（daemon / agent / login item / app / 插件 / developer）→ 条目。',
+  'tree.vendor.d': '按代码签名证书里的 Developer Name 归堆，一眼看出「哪些东西是同一家签的」。没有签名信息的归入「（无签名信息）」。',
+  'tree.config.d': '回答「配置放在哪里」。一级 = 注册位置类别（系统守护进程配置 / 全局代理配置 / 用户代理配置 / 系统内置 / 应用包自身 / 应用包内嵌组件），二级 = 该类别下的所属目录，三级 = 条目。依据字段是 URL —— 它指向的是 plist 或注册载体本身，不是可执行文件。',
+  'tree.exec.d': '回答「可执行文件落在哪里」，与⑥是两件事。一级 = 落点性质（系统特权 Helper / 系统应用支持目录 / 系统库其它位置 / 应用包内 / 本地安装目录 / 用户主目录 / 相对路径），二级 = 所属目录。依据字段是 Executable Path。全部记录都会出现，但只有真正带独立可执行文件的那部分会落到具体目录下，其余集中归入末尾的「无独立可执行文件」桶。',
+  'tree.generation.d': '把 Generation 相同的一批记录放在一个桶里。注意：这只是分组，不是层级关系 —— Generation 不代表父子代际，详见「字段说明」。',
+
+  /* ---- 八棵树：动态标注 ---- */
+  'tree.embed.extra': '另被 {1} 条记录声明为嵌入项',
+  'tree.embed.mismatch': '自述父级 {1}，与嵌入声明方不一致',
+  'tree.orphan': '父记录未登记：{1}',
+  'tree.cycle': '{1} 个子项因循环引用被截断',
+  'tree.nobundle': '（无 Bundle ID）',
+  'tree.novendor': '（无签名信息）',
+  'tree.nomech': '(未知机制)',
+  'tree.genunknown': '未知',
+  'tree.genlabel': 'Generation = {1}',
+  'tree.nodir': '（未给出目录）',
+  'tree.count': '条目 <b>{1}</b> / {2}　·　顶层节点 <b>{3}</b>',
+
+  /* ---- 配置 / 可执行落点类别的注解 ---- */
+  'knote.系统守护进程配置': '/Library/LaunchDaemons —— 以 root 运行的守护进程配置',
+  'knote.全局代理配置': '/Library/LaunchAgents —— 对所有用户生效的代理配置',
+  'knote.用户代理配置': '~/Library/LaunchAgents —— 只对当前用户生效的代理配置',
+  'knote.系统内置配置': '/System/Library 下的系统自带配置',
+  'knote.应用包自身': '注册载体就是 .app 包本身（应用把自己注册为登录项）',
+  'knote.应用包内嵌组件': '相对路径，落在所属应用包的 Contents/ 里面 —— 登录项 helper / QuickLook 扩展 / Spotlight 导入器',
+  'knote.其它绝对路径': '绝对路径，但不属于上面任何一类',
+  'knote.其它相对路径': '相对路径，且不在 Contents/ 下',
+  'knote.无配置路径': 'URL 为 (null)：这类记录没有配置落点（都是 developer 父记录）',
+  'knote.系统特权 Helper': '/Library/PrivilegedHelperTools —— 需要提权的常驻 helper',
+  'knote.系统应用支持目录': '/Library/Application Support 下',
+  'knote.系统库其它位置': '/Library 下但不属于上面两类',
+  'knote.系统内置': '/System/Library 下',
+  'knote.应用包内（Contents/MacOS）': '某个 .app 包里的可执行文件',
+  'knote.应用包内（其它）': '在 .app 包内，但不在 Contents/MacOS',
+  'knote.本地安装目录（/usr/local）': '/usr/local 下的第三方安装',
+  'knote.用户主目录（用户可写）': '位于当前用户主目录 —— 该路径用户自己可写',
+  'knote.相对路径': '相对路径（相对 plist 所在目录或工作目录）',
+  'knote.无独立可执行文件': '没有 Executable Path：配置即载体，不单独启动一个程序',
+
+  /* ---- 字段说明页 ---- */
+  'help.what.h': '这份文件是什么',
+  'help.what.p1': '<code>sudo sfltool dumpbtm</code> 把 macOS 的持久化项数据库（Background Task Management，<code>/private/var/db/com.apple.backgroundtaskmanagement/BackgroundItems-v*.btm</code>）导出成文本。凡是「能开机或登录后自动运行、不需要每次点确认」的东西都在里面：登录项、后台代理（agent）、系统守护进程（daemon）、QuickLook / Spotlight 插件、以及应用注册项。',
+  'help.what.p2': '本次快照：<code>{1}</code>，采集于 <code>{2}</code>，主机 <code>{3}</code>，系统 <code>{4} {5}</code>。',
+  'help.uid.h': '三个 UID 记录组',
+  'help.uid.p': 'dump 按 UID 分组，最前面出现的 <code>-2</code> 是一个<strong>合成组</strong>，把散落在各处的后台项汇到一起；<code>0</code> 是 root；<code>501</code> 是普通用户。同一个软件常常同时出现在 <code>-2</code> 和 <code>501</code> 里，这不是重复，而是它在两个作用域各注册了一份。',
+  'help.gen.h': 'Generation（代数）到底是什么',
+  'help.gen.p1': '<strong>它是 BTM 给每条记录维护的一个计数器，不代表父子代际。</strong>Apple 没有公开它的定义（<code>sfltool</code> 连 man page 都还没写），所以这里只能给经验判断：同一条记录每被重新注册一次，这个数就往上走；数字越大，说明它被反复写入的次数越多。',
+  'help.gen.ev': '本次快照的旁证：',
+  'help.gen.ev.body': '所有 <code>developer</code> 开发者父记录都停在 {1} 及以下，而排在最前的几条明显更高 —— {2}。',
+  'help.gen.ev.name': '<code>{1}</code> 是 {2}',
+  'help.gen.ev.tail': '这正是「每次启动都重新注册登录项」的程序该有的样子。',
+  'help.gen.warn': '<strong>实用结论：</strong>不要用 Generation 判层级。它更大的价值是另一个方向 —— 因为它会自己变化，所以前后两次快照里「只有 Generation 变了」通常不意味着你改了什么。本工作区的比较工具专门把它单列成一层「仅代数变化」，避免真正的人工改动被它刷掉。',
+  'help.prefix.h': 'Identifier（标识符）的前缀数字',
+  'help.prefix.p': '标识符形如 <code>16.com.example.daemon</code>，点号前的数字是作用域码，和 Type 的取值域一致：',
+  'help.prefix.c1': '前缀',
+  'help.prefix.c2': '含义',
+  'help.prefix.c3': '本次条数',
+  'help.prefix.p2': '拆出来放在 <code>identifier_scope</code> / <code>identifier_scope_zh</code> / <code>identifier_base</code> 三列里，方便按「去掉前缀的名字」聚合。',
+  'help.parent.h': 'Parent Identifier（父标识符）',
+  'help.parent.p1': '指向「谁负责注册我」。多数情况下指向一条 Type 为 <code>developer</code> 的开发者父记录 —— 这类记录本身不执行任何程序，它的 <code>Identifier</code> 直接就是开发者名，如 <code>Example Corp</code>、<code>Acme Inc</code>、<code>Unknown Developer</code>；也可能是某个应用条目，如 <code>2.com.example.toolbox</code>。',
+  'help.parent.p2': '派生列：<code>parent_kind</code>（父是哪一类）、<code>child_count</code>（有多少条挂在它下面）、<code>depth</code>（层级）、<code>node_path</code>（完整归属链）。',
+  'help.embed.h': 'Embedded Item Identifiers（嵌入项）',
+  'help.embed.p1': '一条记录内嵌了哪些子项。它和 Parent Identifier 是<strong>同一关系的两个方向，但集合并不重合</strong>。',
+  'help.embed.mismatch': '本次快照里就有例子：<code>{1}</code> 声明自己嵌入了 <code>{2}</code>，但后者自述的父级却是 <code>{3}</code>。两个字段对不上，本身就是值得看一眼的信号。',
+  'help.embed.consistent': '本次快照里两个字段恰好自洽；一旦出现对不上，那本身就是值得看一眼的信号。',
+  'help.bundle.h': 'Assoc. Bundle IDs 与 Bundle Identifier',
+  'help.bundle.p': '<code>Bundle Identifier</code> 是这条记录所属的应用包名；<code>Assoc. Bundle IDs</code> 是它声明关联的包名列表。两者合起来派生出 <code>bundle_key</code>（归组用的键），「Bundle 归组树」就是按它聚合的，可以把同一 App 的条目、代理、守护进程聚回一堆。',
+  'help.disp.h': 'Disposition（处置状态）',
+  'help.disp.p1': '形如 <code>[enabled, allowed, visible, notified] (0xb)</code>。已拆成 5 个布尔列：<code>enabled</code> 已启用、<code>allowed</code> 已允许、<code>visible</code> 可见、<code>notified</code> 已通知、<code>hidden</code> 隐藏（<code>visible</code> 取反）。',
+  'help.disp.p2': '值得注意的是 <code>enabled</code> 与 <code>allowed</code> 的四种组合是否自相矛盾 —— <code>enabled + disallowed</code> 或 <code>disabled + allowed</code> 属于已知的数据库不一致，可以用「仅已禁止」筛选快速看一眼。',
+  'help.other.h': '其它列',
+  'help.other.c1': '列',
+  'help.other.c2': '说明',
+  'help.other.type': '原文形如 <code>legacy daemon (0x10010)</code>。拆成 <code>type_mechanism</code>（机制）、<code>type_modifiers</code>（修饰词，如 legacy / curated）、<code>type_hex</code>（类型码）。',
+  'help.other.url': '注册载体（配置）的落点：<strong>配置放在哪里</strong>。指向的是 plist，或应用包 / 应用包内的组件本身，<strong>不是</strong>可执行文件。派生 <code>url_path</code>（去掉 <code>file://</code> 并解开百分号转义）、<code>config_kind</code>（注册位置类别）、<code>config_dir</code>（所属目录）。',
+  'help.other.exec': '真正被加载执行的文件：<strong>可执行文件落在哪里</strong>。派生 <code>exec_scope</code>（落点性质）、<code>exec_dir</code>（所属目录）。<strong>它与 URL 是两个独立的问题</strong>——同一条记录可以两者都有、只有其一，或都没有；两者不一致时说明 plist 注册的配置与真正跑起来的程序不在同一处。',
+  'help.other.dup': '同一 UID 下 <code>标识符基名 + 持久化机制</code> 完全相同的多条记录，会打上同一个 D 编号。',
+  'help.other.dup.none': '本次快照没有重复注册。',
+  'help.other.dup.list': '本次有 {1} 处 —— {2}。',
+  'help.other.dup.item': '<code>{1}</code>（{2} 条）',
+  'help.other.dup.tail': '这些记录<strong>一条都没有被删掉</strong>，只是被标记出来。',
+  'help.other.matchkey': '跨快照比对用的语义主键（标识符基名｜机制）。',
+  'help.other.srcline': '该条记录在原始 dump 文本里的行号，方便逐字回溯。',
+  'help.trees.h': '八棵关系树怎么选',
+  'help.trees.c1': '树',
+  'help.trees.c2': '看什么',
+  'help.trees.note': '说明：① ② 两棵树里，同一条记录只挂在第一个匹配到的父节点下；父记录没出现在本次 dump 里时，条目按顶层节点保留并标注，不会被强行搬走，以确保分组归属与 dump 一致。',
+  'help.two.h': '⑥ 与 ⑦ 为什么是两棵树',
+  'help.two.p1': '<code>URL</code> 与 <code>Executable Path</code> 看起来都在说「路径」，但它们回答的是<strong>两个不同的问题</strong>：前者是<strong>配置（plist / 应用包）注册在哪里</strong>，后者是<strong>真正被执行的程序落在哪里</strong>。任意一条记录都属于下面三种形态之一：',
+  'help.two.c1': '形态',
+  'help.two.c2': '说明',
+  'help.two.r1': '<tr><td>两者都有</td><td>配置注册在某处，且另有独立可执行文件（daemon / agent 都是这种）</td></tr>',
+  'help.two.r2': '<tr><td>只有 URL</td><td>配置即载体：登录项、QuickLook 扩展、Spotlight 导入器、把自己注册为登录项的应用</td></tr>',
+  'help.two.r3': '<tr><td>两者都无</td><td>developer 父记录，只表示「归属」，没有落点</td></tr>',
+  'help.two.note': '所以⑥与⑦<strong>不是同一批东西的两种切法</strong>——它们的叶子集合天然重叠但不相等，各自末尾都有一个「无」桶把不适用的记录如实收好（⑥ 收无 URL 的 developer 父记录，⑦ 收不单独启程序的配置载体），一条都不会被悄悄丢掉。同时注意类别不是树里现猜的 —— <code>config_kind</code> / <code>config_dir</code> / <code>exec_scope</code> / <code>exec_dir</code> 四列在表格视图里也能看到，两边口径一致。',
+
+  /* ---- 统计条与副标题 ---- */
+  'stat.items': '条目',
+  'stat.sections': '记录组',
+  'stat.cols': '字段',
+  'stat.on': '已启用',
+  'stat.nosign': '无签名信息',
+  'stat.dup': '重复注册',
+  'sub.from': '取自 {1}',
+  'sub.captured': '采集 {1}',
+  'sub.sort': '排序口径 {1}',
+  'sub.nulled': '(null) 已清空',
+
+  /* ---- 51 列的英文名（en 形态用；zh 形态取数据里的 column_meta）---- */
+  'col.uid': '记录组 UID',
+  'col.uid_domain': '作用域',
+  'col.group_uuid': '记录组 UUID',
+  'col.sm_migrated': '已迁移 ServiceManagement',
+  'col.ls_registered': '已注册 LaunchServices',
+  'col.seq': '组内序号',
+  'col.uuid': '条目 UUID',
+  'col.name': '名称',
+  'col.developer_name': '开发者名称',
+  'col.team_identifier': '签名 Team ID',
+  'col.type_raw': '类型（原文）',
+  'col.type_mechanism': '持久化机制',
+  'col.type_modifiers': '类型修饰词',
+  'col.type_hex': '类型码',
+  'col.flags_raw': '标志（原文）',
+  'col.flags_list': '标志列表',
+  'col.flags_hex': '标志码',
+  'col.disposition_raw': '处置状态（原文）',
+  'col.disposition_hex': '处置码',
+  'col.enabled': '已启用',
+  'col.allowed': '已允许',
+  'col.visible': '可见',
+  'col.notified': '已通知',
+  'col.hidden': '隐藏',
+  'col.identifier': '标识符',
+  'col.identifier_scope': '作用域码',
+  'col.identifier_scope_zh': '作用域说明',
+  'col.identifier_base': '标识符基名',
+  'col.url': '注册落点 URL',
+  'col.url_path': '配置路径（URL 指向）',
+  'col.config_kind': '配置注册位置类别',
+  'col.config_dir': '配置所属目录',
+  'col.executable_path': '可执行文件路径',
+  'col.exec_scope': '可执行落点类别',
+  'col.exec_dir': '可执行文件所属目录',
+  'col.bundle_identifier': 'Bundle ID',
+  'col.bundle_key': 'Bundle 归组键',
+  'col.parent_identifier': '父标识符',
+  'col.parent_kind': '父类型',
+  'col.assoc_bundle_ids': '关联 Bundle IDs',
+  'col.assoc_count': '关联数量',
+  'col.embedded_item_identifiers': '嵌入项标识符',
+  'col.embedded_count': '嵌入数量',
+  'col.generation': '代数（Generation）',
+  'col.dup_group': '重复注册组',
+  'col.match_key': '比对主键',
+  'col.source_line': '源文件行号',
+  'col.child_count': '子项数',
+  'col.depth': '归属层级',
+  'col.node_path': '归属链',
+  'col.persistence_zh': '机制说明'
+};
+/* ---BTM_I18N:en--- */
+var BTM_LANG = 'en';
+
+/* 数据里自带的中文枚举值 -> 英文显示。
+ * 键是**数据原值**（extract 阶段算出来的中文标签），只在显示时替换，
+ * 数据文件与页面右上角的 CSV 导出都保持原值。 */
+var V = {
+  /* 列分组 */
+  '记录组': 'Record group',
+  '身份': 'Identity',
+  '类型': 'Type',
+  '状态': 'State',
+  '标识': 'Identifier',
+  '配置与落点': 'Config & payload',
+  '关系': 'Relations',
+  '变更': 'Change tracking',
+  '结构': 'Structure',
+  '未预置字段': 'Unmapped fields',
+  '其它': 'Other',
+  /* identifier_scope_zh */
+  '应用': 'App',
+  '登录项': 'Login item',
+  '用户代理': 'User agent',
+  '系统守护进程': 'System daemon',
+  'Spotlight 插件': 'Spotlight plug-in',
+  'QuickLook 插件': 'QuickLook plug-in',
+  '开发者父记录': 'Developer parent',
+  /* parent_kind */
+  '开发者记录': 'Developer record',
+  '应用 / 条目记录': 'App / item record',
+  '无父记录（顶层）': 'No parent (top level)',
+  /* persistence_zh */
+  '开机即启动（系统级 root 守护进程）': 'Starts at boot (system-level root daemon)',
+  '登录后启动（当前用户代理）': 'Starts at login (current-user agent)',
+  '应用注册项': 'App registration entry',
+  '开发者父记录（本身不执行）': 'Developer parent (never executed)',
+  '登录后启动（登录项辅助程序）': 'Starts at login (login-item helper)',
+  'QuickLook 预览插件': 'QuickLook preview plug-in',
+  'Spotlight 导入插件': 'Spotlight importer',
+  /* config_kind */
+  '系统守护进程配置': 'System daemon config',
+  '全局代理配置': 'Global agent config',
+  '用户代理配置': 'User agent config',
+  '系统内置配置': 'Built-in system config',
+  '应用包自身': 'The app bundle itself',
+  '应用包内嵌组件': 'Component inside an app bundle',
+  '其它绝对路径': 'Other absolute path',
+  '其它相对路径': 'Other relative path',
+  '无配置路径': 'No config path',
+  /* exec_scope */
+  '系统特权 Helper': 'Privileged helper',
+  '系统应用支持目录': 'Application Support',
+  '系统库其它位置': 'Other place under /Library',
+  '系统内置': 'Built into the system',
+  '应用包内（Contents/MacOS）': 'Inside a bundle (Contents/MacOS)',
+  '应用包内（其它）': 'Inside a bundle (other)',
+  '本地安装目录（/usr/local）': 'Local install (/usr/local)',
+  '用户主目录（用户可写）': 'User home directory (writable)',
+  '相对路径': 'Relative path',
+  '无独立可执行文件': 'No separate executable'
+};
+
+var L = {
+  /* ---- Page chrome ---- */
+  'doc.title': 'macOS Background Items (BTM) — full fields · relationship trees',
+  'h1': 'macOS Background Items',
+  'tab.table': 'Table',
+  'tab.tree': 'Trees',
+  'tab.help': 'Field guide',
+  'q.ph': 'Filter: name / identifier / path / developer / UUID…',
+  'f.allstatus': 'All states',
+  'f.enabled': 'Enabled only',
+  'f.disabled': 'Disabled only',
+  'f.disallowed': 'Disallowed only',
+  'f.notallowed': 'Not disallowed',
+  'f.dup': 'Duplicates only',
+  'f.noparent': 'No parent only',
+  'f.nosign': 'Unsigned only',
+  'f.alluid': 'All record groups',
+  'f.allmech': 'All mechanisms',
+  'f.uidopt': 'UID {1} ({2} items)',
+  'btn.cols': 'Columns',
+  'btn.csv': 'Export view as CSV',
+  'btn.reset': 'Reset view',
+  'lbl.relation': 'Relation:',
+  'ck.onlyon': 'Enabled only',
+  'ck.collapse': 'Collapsed by default',
+  'btn.expandall': 'Expand all',
+  'btn.collapseall': 'Collapse all',
+
+  /* ---- Column panel ---- */
+  'col.presets': 'Presets:',
+  'col.all': 'All',
+  'col.none': 'None',
+  'col.reset': 'Reset to all fields',
+  'col.close': 'Hide panel',
+  'col.hint': 'Ticking a box takes effect immediately and is remembered in this browser, so the same columns come back next time.',
+  'preset.all': 'All fields',
+  'preset.common': 'Common',
+  'preset.identity': 'Identity & state',
+  'preset.relation': 'Relations & hierarchy',
+  'preset.location': 'Config & payload',
+  'preset.nested': 'Nesting & duplicates',
+  'preset.minimal': 'Minimal',
+
+  /* ---- Table ---- */
+  'tbl.count': 'Showing <b>{1}</b> / {2} rows · <b>{3}</b> / {4} cols',
+  'tbl.sorted': 'Sorted by <b>{1}</b>, {2}',
+  'tbl.asc': 'ascending',
+  'tbl.desc': 'descending',
+  'tbl.fileorder': 'Row order: as stored in the file ({1})',
+
+  /* ---- Shared words ---- */
+  'grp.unset': 'Unmapped fields',
+  'grp.other': 'Other',
+  'noname': '(unnamed)',
+  'on': 'on',
+  'off': 'off',
+  'disallowed': 'disallowed',
+  'allowed': 'allowed',
+  'dup': 'dup {1}',
+  'gen': 'gen {1}',
+  'items': '{1} items',
+  'd.close': 'Close',
+  'detail.uid': 'UID {1} ({2})',
+  'uid.group': 'Record group UID {1} · {2}',
+  'uid.note': 'ServiceManagement migrated={1} · LaunchServices registered={2}',
+  'csv.prefix': 'btm-current-view-',
+  'sep.list': ', ',
+  'sep.cell': ' | ',
+  'sep.note': '; ',
+
+  /* ---- The eight trees: titles ---- */
+  'tree.parent.t': '① Ownership tree (Parent Identifier)',
+  'tree.embedded.t': '② Embedding tree (Embedded Item Identifiers)',
+  'tree.bundle.t': '③ Bundle grouping tree (Bundle ID / Assoc. Bundle IDs)',
+  'tree.scope.t': '④ Scope tree (record group UID → persistence mechanism)',
+  'tree.vendor.t': '⑤ Signing-identity tree (Developer Name)',
+  'tree.config.t': '⑥ Config-source tree (URL → where the config lives)',
+  'tree.exec.t': '⑦ Executable-location tree (Executable Path → where the binary lives)',
+  'tree.generation.t': '⑧ Generation buckets (not a hierarchy)',
+
+  /* ---- The eight trees: descriptions ---- */
+  'tree.parent.d': 'Uses each record’s “Parent Identifier” to point at the record that owns it. A parent is usually a developer record (Type = developer, e.g. Example Corp, Acme Inc), but it can also be an app entry (e.g. 2.com.example.toolbox). An item hangs under the first matching parent only; when the parent record does not appear anywhere in this snapshot, the item stays at the top level and is annotated “parent not registered”.',
+  'tree.embedded.d': 'Builds parent/child links from the “Embedded Item Identifiers” a record lists itself: whoever this record names becomes its child. It is the mirror image of ① and the two sets do not fully overlap — the difference between them is itself a lead.',
+  'tree.bundle.d': 'Groups by Bundle ID: prefer the record’s own Bundle Identifier, falling back to the identifier base name or the first Assoc. Bundle ID. App entries, agents and daemons belonging to the same bundle end up together.',
+  'tree.scope.d': 'Reproduces the three levels of the dump: record group (UID -2 / 0 / 501) → persistence mechanism (daemon / agent / login item / app / plug-in / developer) → items.',
+  'tree.vendor.d': 'Groups by the Developer Name in the code-signing certificate, so you can see at a glance which items share a signer. Items with no signing info land in “(no signing info)”.',
+  'tree.config.d': 'Answers “where does the config live”. Level 1 = registration-location category (system daemon config / global agent config / user agent config / built-in system config / the app bundle itself / component inside an app bundle), level 2 = directory within that category, level 3 = items. The underlying field is URL — it points at the plist or registration carrier itself, not at an executable.',
+  'tree.exec.d': 'Answers “where does the executable live”, which is a different question from ⑥. Level 1 = nature of the location (privileged helper / Application Support / other place under /Library / inside an app bundle / local install / user home directory / relative path), level 2 = directory under it. The underlying field is Executable Path. Every record appears somewhere, but only those with a real standalone binary land in a concrete directory; the rest are collected in the trailing “no separate executable” bucket.',
+  'tree.generation.d': 'Puts records that share the same Generation value into one bucket. Note this is a grouping, not a hierarchy — Generation does not mean parent/child generations; see the “Field guide” tab.',
+
+  /* ---- The eight trees: annotations ---- */
+  'tree.embed.extra': 'also claimed as an embedded item by {1} other record(s)',
+  'tree.embed.mismatch': 'names {1} as its parent, which disagrees with the record claiming it',
+  'tree.orphan': 'parent not registered: {1}',
+  'tree.cycle': '{1} child item(s) truncated because of a reference cycle',
+  'tree.nobundle': '(no Bundle ID)',
+  'tree.novendor': '(no signing info)',
+  'tree.nomech': '(unknown mechanism)',
+  'tree.genunknown': 'unknown',
+  'tree.genlabel': 'Generation = {1}',
+  'tree.nodir': '(no directory given)',
+  'tree.count': 'Items <b>{1}</b> / {2} · top-level nodes <b>{3}</b>',
+
+  /* ---- Config / executable location category notes ---- */
+  'knote.系统守护进程配置': '/Library/LaunchDaemons — daemon configs that run as root',
+  'knote.全局代理配置': '/Library/LaunchAgents — agent configs in effect for all users',
+  'knote.用户代理配置': '~/Library/LaunchAgents — agent configs for the current user only',
+  'knote.系统内置配置': 'configs that ship with the system under /System/Library',
+  'knote.应用包自身': 'the .app bundle itself is the registration carrier (the app registers itself as a login item)',
+  'knote.应用包内嵌组件': 'a relative path inside the owning app bundle — login-item helper / QuickLook extension / Spotlight importer',
+  'knote.其它绝对路径': 'an absolute path that fits none of the categories above',
+  'knote.其它相对路径': 'a relative path that is not under Contents/',
+  'knote.无配置路径': 'URL is (null): these records have no config location (all of them are developer parent records)',
+  'knote.系统特权 Helper': '/Library/PrivilegedHelperTools — always-on helpers that need elevation',
+  'knote.系统应用支持目录': 'under /Library/Application Support',
+  'knote.系统库其它位置': 'under /Library but not in the two categories above',
+  'knote.系统内置': 'under /System/Library',
+  'knote.应用包内（Contents/MacOS）': 'an executable inside a .app bundle',
+  'knote.应用包内（其它）': 'inside a .app bundle, but not in Contents/MacOS',
+  'knote.本地安装目录（/usr/local）': 'third-party installs under /usr/local',
+  'knote.用户主目录（用户可写）': 'inside the current user’s home directory — the user can write to this path',
+  'knote.相对路径': 'a relative path (relative to the plist location or the working directory)',
+  'knote.无独立可执行文件': 'no Executable Path: the config is the carrier and no separate program is launched',
+
+  /* ---- Field guide ---- */
+  'help.what.h': 'What this file is',
+  'help.what.p1': '<code>sudo sfltool dumpbtm</code> dumps the macOS persistence database (Background Task Management, <code>/private/var/db/com.apple.backgroundtaskmanagement/BackgroundItems-v*.btm</code>) to text. Everything that “starts automatically at boot or login without asking each time” is in there: login items, background agents, system daemons, QuickLook / Spotlight plug-ins and app registrations.',
+  'help.what.p2': 'This snapshot: <code>{1}</code>, captured at <code>{2}</code>, host <code>{3}</code>, system <code>{4} {5}</code>.',
+  'help.uid.h': 'The three UID record groups',
+  'help.uid.p': 'The dump is grouped by UID. The leading <code>-2</code> is a <strong>synthetic group</strong> that pulls background items from everywhere together; <code>0</code> is root; <code>501</code> is a regular user. The same software often shows up in both <code>-2</code> and <code>501</code> — that is not a duplicate, it registered once in each scope.',
+  'help.gen.h': 'What Generation actually is',
+  'help.gen.p1': '<strong>It is a counter BTM keeps per record; it does not mean parent/child generations.</strong> Apple has never documented it (<code>sfltool</code> does not even have a man page yet), so this is an empirical reading: each time a record is re-registered the number goes up, so a larger number means it has been written more often.',
+  'help.gen.ev': 'Supporting evidence from this snapshot: ',
+  'help.gen.ev.body': 'every <code>developer</code> parent record sits at {1} or below, while the highest few are clearly larger — {2}.',
+  'help.gen.ev.name': '<code>{1}</code> is {2}',
+  'help.gen.ev.tail': 'That is exactly what a program that re-registers its login item on every launch looks like.',
+  'help.gen.warn': '<strong>Practical takeaway:</strong> do not use Generation to infer hierarchy. Its real value runs the other way — because it changes on its own, a snapshot-to-snapshot diff where “only Generation changed” usually means you changed nothing. The comparison tool in this project deliberately reports it as its own “generation-only change” layer so real manual changes are not buried under it.',
+  'help.prefix.h': 'The numeric prefix of an identifier',
+  'help.prefix.p': 'Identifiers look like <code>16.com.example.daemon</code>. The number before the dot is a scope code, drawn from the same domain as Type:',
+  'help.prefix.c1': 'Prefix',
+  'help.prefix.c2': 'Meaning',
+  'help.prefix.c3': 'Count here',
+  'help.prefix.p2': 'It is split out into the <code>identifier_scope</code> / <code>identifier_scope_zh</code> / <code>identifier_base</code> columns so you can aggregate by the name without its prefix.',
+  'help.parent.h': 'Parent Identifier',
+  'help.parent.p1': 'Points at “who registered me”. Most of the time it points at a developer parent record (Type <code>developer</code>) — such a record never runs anything itself; its <code>Identifier</code> is simply the developer name, e.g. <code>Example Corp</code>, <code>Acme Inc</code>, <code>Unknown Developer</code>. It can also point at an app entry such as <code>2.com.example.toolbox</code>.',
+  'help.parent.p2': 'Derived columns: <code>parent_kind</code> (what kind of parent it is), <code>child_count</code> (how many items hang under it), <code>depth</code> (level), <code>node_path</code> (the full ownership chain).',
+  'help.embed.h': 'Embedded Item Identifiers',
+  'help.embed.p1': 'Which child items a record embeds. Together with Parent Identifier these are <strong>two directions of the same relationship, but the two sets do not coincide</strong>.',
+  'help.embed.mismatch': 'Here is an example from this snapshot: <code>{1}</code> declares that it embeds <code>{2}</code>, but the latter names <code>{3}</code> as its own parent. The two fields disagree — that in itself is worth a look.',
+  'help.embed.consistent': 'In this snapshot the two fields happen to agree; should they ever disagree, that in itself is worth a look.',
+  'help.bundle.h': 'Assoc. Bundle IDs and Bundle Identifier',
+  'help.bundle.p': '<code>Bundle Identifier</code> is the app bundle this record belongs to; <code>Assoc. Bundle IDs</code> is the list of bundle names it declares an association with. Together they derive <code>bundle_key</code> (the grouping key), which is what the “Bundle grouping tree” aggregates on, pulling an app’s entries, agents and daemons back into one pile.',
+  'help.disp.h': 'Disposition',
+  'help.disp.p1': 'Looks like <code>[enabled, allowed, visible, notified] (0xb)</code>. It is split into five boolean columns: <code>enabled</code>, <code>allowed</code>, <code>visible</code>, <code>notified</code> and <code>hidden</code> (the negation of <code>visible</code>).',
+  'help.disp.p2': 'It is worth checking whether the four combinations of <code>enabled</code> and <code>allowed</code> contradict each other — <code>enabled + disallowed</code> or <code>disabled + allowed</code> are known database inconsistencies. The “Disallowed only” filter lets you look at them quickly.',
+  'help.other.h': 'Other columns',
+  'help.other.c1': 'Column',
+  'help.other.c2': 'Meaning',
+  'help.other.type': 'Raw form looks like <code>legacy daemon (0x10010)</code>. Split into <code>type_mechanism</code>, <code>type_modifiers</code> (words such as legacy / curated) and <code>type_hex</code> (the type code).',
+  'help.other.url': 'Where the registration carrier (the config) sits: <strong>where the config lives</strong>. It points at a plist, or at the app bundle / a component inside the bundle itself — <strong>not</strong> at an executable. Derives <code>url_path</code> (strips <code>file://</code> and resolves percent escapes), <code>config_kind</code> (registration-location category) and <code>config_dir</code> (containing directory).',
+  'help.other.exec': 'The file that is actually loaded and executed: <strong>where the binary lives</strong>. Derives <code>exec_scope</code> (nature of the location) and <code>exec_dir</code> (containing directory). <strong>It is an independent question from URL</strong> — a record can have both, only one, or neither; when the two disagree, the config registered by the plist and the program that actually runs are not in the same place.',
+  'help.other.dup': 'Multiple records under the same UID whose <code>identifier base name + persistence mechanism</code> are identical get the same D number.',
+  'help.other.dup.none': 'This snapshot has no duplicate registrations.',
+  'help.other.dup.list': 'This snapshot has {1} — {2}.',
+  'help.other.dup.item': '<code>{1}</code> ({2} records)',
+  'help.other.dup.tail': 'Not a single one of these records was deleted; they are merely flagged.',
+  'help.other.matchkey': 'The semantic primary key used for cross-snapshot comparison (identifier base name | mechanism).',
+  'help.other.srcline': 'Line number of this record in the raw dump text, so you can trace it back character by character.',
+  'help.trees.h': 'Choosing among the eight trees',
+  'help.trees.c1': 'Tree',
+  'help.trees.c2': 'What it shows',
+  'help.trees.note': 'Note: in trees ① and ② an item hangs under the first matching parent only; when the parent record does not appear in this dump the item stays at the top level and is annotated, never forcibly relocated, so grouping stays consistent with the dump.',
+  'help.two.h': 'Why ⑥ and ⑦ are two separate trees',
+  'help.two.p1': '<code>URL</code> and <code>Executable Path</code> both look like they describe “a path”, but they answer <strong>two different questions</strong>: the first is <strong>where the config (plist / app bundle) is registered</strong>, the second is <strong>where the program that actually runs lives</strong>. Every record is one of these three shapes:',
+  'help.two.c1': 'Shape',
+  'help.two.c2': 'Meaning',
+  'help.two.r1': '<tr><td>Both present</td><td>the config is registered somewhere and there is a separate executable (all daemons / agents look like this)</td></tr>',
+  'help.two.r2': '<tr><td>URL only</td><td>the config is the carrier: login items, QuickLook extensions, Spotlight importers, apps that register themselves as login items</td></tr>',
+  'help.two.r3': '<tr><td>Neither</td><td>developer parent records: they only express ownership and have no location</td></tr>',
+  'help.two.note': 'So ⑥ and ⑦ are <strong>not two ways of slicing the same set</strong> — their leaf sets overlap naturally but are not equal, and each ends with a “none” bucket that faithfully collects the records that do not apply (⑥ collects developer parents with no URL, ⑦ collects config carriers that never launch a separate program). Nothing is quietly dropped. Note also that the categories are not guessed inside the tree — the four columns <code>config_kind</code> / <code>config_dir</code> / <code>exec_scope</code> / <code>exec_dir</code> are visible in the table view too, so both views use the same definitions.',
+
+  /* ---- Stats and subtitle ---- */
+  'stat.items': 'Items',
+  'stat.sections': 'Record groups',
+  'stat.cols': 'Fields',
+  'stat.on': 'Enabled',
+  'stat.nosign': 'Unsigned',
+  'stat.dup': 'Duplicates',
+  'sub.from': 'from {1}',
+  'sub.captured': 'captured {1}',
+  'sub.sort': 'row order {1}',
+  'sub.nulled': '(null) cleared',
+
+  /* ---- English column names (en mode; zh mode uses column_meta from the data) ---- */
+  'col.uid': 'Record group UID',
+  'col.uid_domain': 'Scope',
+  'col.group_uuid': 'Record group UUID',
+  'col.sm_migrated': 'Migrated to ServiceManagement',
+  'col.ls_registered': 'Registered with LaunchServices',
+  'col.seq': 'Index in group',
+  'col.uuid': 'Item UUID',
+  'col.name': 'Name',
+  'col.developer_name': 'Developer name',
+  'col.team_identifier': 'Signing Team ID',
+  'col.type_raw': 'Type (raw)',
+  'col.type_mechanism': 'Persistence mechanism',
+  'col.type_modifiers': 'Type modifiers',
+  'col.type_hex': 'Type code',
+  'col.flags_raw': 'Flags (raw)',
+  'col.flags_list': 'Flag list',
+  'col.flags_hex': 'Flags code',
+  'col.disposition_raw': 'Disposition (raw)',
+  'col.disposition_hex': 'Disposition code',
+  'col.enabled': 'Enabled',
+  'col.allowed': 'Allowed',
+  'col.visible': 'Visible',
+  'col.notified': 'Notified',
+  'col.hidden': 'Hidden',
+  'col.identifier': 'Identifier',
+  'col.identifier_scope': 'Scope code',
+  'col.identifier_scope_zh': 'Scope description',
+  'col.identifier_base': 'Identifier base name',
+  'col.url': 'Registration URL',
+  'col.url_path': 'Config path (URL target)',
+  'col.config_kind': 'Config location category',
+  'col.config_dir': 'Config directory',
+  'col.executable_path': 'Executable path',
+  'col.exec_scope': 'Executable location category',
+  'col.exec_dir': 'Executable directory',
+  'col.bundle_identifier': 'Bundle ID',
+  'col.bundle_key': 'Bundle grouping key',
+  'col.parent_identifier': 'Parent identifier',
+  'col.parent_kind': 'Parent kind',
+  'col.assoc_bundle_ids': 'Associated Bundle IDs',
+  'col.assoc_count': 'Associated count',
+  'col.embedded_item_identifiers': 'Embedded item identifiers',
+  'col.embedded_count': 'Embedded count',
+  'col.generation': 'Generation',
+  'col.dup_group': 'Duplicate group',
+  'col.match_key': 'Comparison key',
+  'col.source_line': 'Source line number',
+  'col.child_count': 'Child count',
+  'col.depth': 'Ownership depth',
+  'col.node_path': 'Ownership chain',
+  'col.persistence_zh': 'Mechanism description'
+};
+/* ===BTM_I18N_END=== */
+
+/* 取界面文案：'key' 或带 {1}{2}… 占位符的模板。缺失时返回键名本身，
+ * 便于一眼看出漏翻/写错的键，而不是静默显示成空白。 */
+function T(k){
+  var s = L[k];
+  if (s === undefined) return k;
+  for (var i = 1; i < arguments.length; i++){
+    var a = arguments[i];
+    if (a === undefined || a === null) a = '';
+    s = s.split('{' + i + '}').join(a);
+  }
+  return s;
+}
+
+/* 数据里自带的中文枚举值 -> 当前语言的显示文本。精确匹配才替换，故可放心全局调用。 */
+function show(v){
+  if (BTM_LANG !== 'en' || typeof v !== 'string') return v;
+  var s = V[v];
+  return s === undefined ? v : s;
+}
+
+/* 列显示名：zh 形态取数据里的 column_meta.zh，en 形态取字典里的 col.<键>。
+ * 英文列名放在模板而不是 btm-emit.awk，是为了让数据管线（CSV / JSON / 比对）保持零改动。 */
+function colLabel(c){
+  if (BTM_LANG === 'en') return L['col.' + c] || c;
+  return (META[c] && META[c].zh) || c;
+}
+
+/* 把静态标记里 data-t / data-t-ph 的文案填上（HTML 里留空以避免混入另一种语言） */
+function localizeDom(){
+  Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function(n){
+    n.textContent = T(n.getAttribute('data-t'));
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-t-ph]'), function(n){
+    n.setAttribute('placeholder', T(n.getAttribute('data-t-ph')));
+  });
+}
+
 /* ------------------------------------------------------------------ 数据 */
 var DATA = JSON.parse(document.getElementById('btm-data').textContent);
 var ALLCOLS = DATA.columns || [];
@@ -237,7 +860,6 @@ function esc(s){
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function isNullish(v){ return v === undefined || v === null || v === '' || v === '(null)'; }
-function colZh(c){ return (META[c] && META[c].zh) || c; }
 function colGrp(c){ return (META[c] && META[c].grp) || '其它'; }
 function nid(it){ return it.uid + '#' + it.seq + '#' + it.uuid; }
 function val(it, c){ var v = it[c]; return (v === undefined || v === null) ? '' : String(v); }
@@ -261,15 +883,17 @@ ITEMS.forEach(function(it){
   it._s = buf.join(' ').toLowerCase();
 });
 
-/* ------------------------------------------------------------------ 列预设 */
+/* ------------------------------------------------------------------ 列预设
+ * 键是稳定标识，显示名走字典 preset.<键>，所以加一种语言不必动这张表。 */
+var PRESET_ORDER = ['all', 'common', 'identity', 'relation', 'location', 'nested', 'minimal'];
 var PRESETS = {
-  '全字段': ALLCOLS.slice(),
-  '常用': ['uid','seq','name','identifier_base','type_mechanism','enabled','allowed','developer_name','team_identifier','url_path','parent_identifier','generation','dup_group'],
-  '身份与状态': ['uid','uuid','name','developer_name','team_identifier','type_raw','type_mechanism','enabled','allowed','visible','notified','identifier_scope_zh','generation'],
-  '关系与层级': ['uid','name','identifier','parent_identifier','parent_kind','child_count','depth','node_path','bundle_key','assoc_bundle_ids','embedded_item_identifiers'],
-  '配置与落点': ['uid','name','identifier_base','type_mechanism','url','url_path','config_kind','config_dir','executable_path','exec_scope','exec_dir'],
-  '嵌套与重复': ['uid','seq','name','identifier_base','type_mechanism','dup_group','match_key','embedded_count','assoc_count','generation','source_line'],
-  '极简': ['uid','name','identifier_base','type_mechanism','enabled']
+  all:      ALLCOLS.slice(),
+  common:   ['uid','seq','name','identifier_base','type_mechanism','enabled','allowed','developer_name','team_identifier','url_path','parent_identifier','generation','dup_group'],
+  identity: ['uid','uuid','name','developer_name','team_identifier','type_raw','type_mechanism','enabled','allowed','visible','notified','identifier_scope_zh','generation'],
+  relation: ['uid','name','identifier','parent_identifier','parent_kind','child_count','depth','node_path','bundle_key','assoc_bundle_ids','embedded_item_identifiers'],
+  location: ['uid','name','identifier_base','type_mechanism','url','url_path','config_kind','config_dir','executable_path','exec_scope','exec_dir'],
+  nested:   ['uid','seq','name','identifier_base','type_mechanism','dup_group','match_key','embedded_count','assoc_count','generation','source_line'],
+  minimal:  ['uid','name','identifier_base','type_mechanism','enabled']
 };
 
 function loadCols(){
@@ -334,8 +958,8 @@ function renderTable(){
   S.cols.forEach(function(c, i){
     var cls = (i === 0 ? 'pin' : '') + (S.sortCol === c ? (' sorted' + (S.sortAsc ? '' : ' desc')) : '');
     h.push('<th class="' + cls + '" data-c="' + esc(c) + '" title="' + esc(c) + '">'
-      + '<span class="zh">' + esc(colZh(c)) + '</span>'
-      + '<span class="en">' + esc(c) + '</span></th>');
+      + '<span class="lbl">' + esc(colLabel(c)) + '</span>'
+      + '<span class="key">' + esc(c) + '</span></th>');
   });
   h.push('</tr></thead><tbody id="tb"></tbody></table>');
   document.getElementById('tablewrap').innerHTML = h.join('');
@@ -359,7 +983,7 @@ function renderTable(){
       if (Object.prototype.toString.call(v) === '[object Array]') txt = v.join(' | ');
       else if (v === true) txt = 'TRUE';
       else if (v === false) txt = 'FALSE';
-      else txt = (v === undefined || v === null) ? '' : String(v);
+      else txt = (v === undefined || v === null) ? '' : show(String(v));
       buf.push('<td class="' + cls.join(' ') + '" title="' + esc(txt) + '">' + esc(txt) + '</td>');
     });
     buf.push('</tr>');
@@ -381,37 +1005,37 @@ function renderTable(){
     };
   });
 
-  document.getElementById('count').innerHTML = '显示 <b>' + rows.length + '</b> / ' + ITEMS.length + ' 条　·　<b>'
-    + S.cols.length + '</b> / ' + ALLCOLS.length + ' 列';
+  document.getElementById('count').innerHTML = T('tbl.count',
+    rows.length, ITEMS.length, S.cols.length, ALLCOLS.length);
   document.getElementById('colNum').textContent = S.cols.length + '/' + ALLCOLS.length;
   document.getElementById('orderHint').innerHTML = S.sortCol
-    ? '表格排序：<b>' + esc(colZh(S.sortCol)) + '</b> ' + (S.sortAsc ? '升序' : '降序')
-    : '表格顺序：文件内既定顺序（' + esc(DATA.sort_preset) + '）';
+    ? T('tbl.sorted', esc(colLabel(S.sortCol)), esc(S.sortAsc ? T('tbl.asc') : T('tbl.desc')))
+    : T('tbl.fileorder', esc(show(DATA.sort_preset)));
 }
 
 /* ------------------------------------------------------------------ 列选择面板 */
 function renderColPanel(){
   var p = document.getElementById('colpanel');
-  var h = ['<div class="presets"><span class="hint">预设：</span>'];
-  Object.keys(PRESETS).forEach(function(k){
-    h.push('<button data-preset="' + esc(k) + '">' + esc(k) + '</button>');
+  var h = ['<div class="presets"><span class="hint">' + T('col.presets') + '</span>'];
+  PRESET_ORDER.forEach(function(k){
+    h.push('<button data-preset="' + esc(k) + '">' + esc(T('preset.' + k)) + '</button>');
   });
   h.push('<div class="sep"></div>'
-    + '<button data-preset="__all">全选</button>'
-    + '<button data-preset="__none">全不选</button>'
-    + '<button data-preset="__reset">恢复默认（全字段）</button>'
-    + '<button data-preset="__close">收起面板</button>'
-    + '<span class="hint">勾选会即时生效，并记在本机浏览器里，下次打开同一套列。</span></div>');
+    + '<button data-preset="__all">' + esc(T('col.all')) + '</button>'
+    + '<button data-preset="__none">' + esc(T('col.none')) + '</button>'
+    + '<button data-preset="__reset">' + esc(T('col.reset')) + '</button>'
+    + '<button data-preset="__close">' + esc(T('col.close')) + '</button>'
+    + '<span class="hint">' + esc(T('col.hint')) + '</span></div>');
 
   GROUPS.forEach(function(g){
     var cols = ALLCOLS.filter(function(c){ return colGrp(c) === g; });
     if (!cols.length) return;
-    h.push('<div class="grp"><h4>' + esc(g) + '</h4><div class="items">');
+    h.push('<div class="grp"><h4>' + esc(show(g)) + '</h4><div class="items">');
     cols.forEach(function(c){
       var on = S.cols.indexOf(c) >= 0;
       h.push('<label class="' + (on ? 'on' : '') + '" title="' + esc(c) + '">'
         + '<input type="checkbox" data-col="' + esc(c) + '"' + (on ? ' checked' : '') + '>'
-        + esc(colZh(c)) + ' <em>' + esc(c) + '</em></label>');
+        + esc(colLabel(c)) + ' <em>' + esc(c) + '</em></label>');
     });
     h.push('</div></div>');
   });
@@ -444,27 +1068,10 @@ function renderColPanel(){
   });
 }
 
-/* ------------------------------------------------------------------ 关系树 */
-var TREEMODES = [
-  { k:'parent',     t:'① 归属树（父标识符 Parent Identifier）' },
-  { k:'embedded',   t:'② 嵌入树（Embedded Item Identifiers）' },
-  { k:'bundle',     t:'③ Bundle 归组树（Bundle ID / Assoc. Bundle IDs）' },
-  { k:'scope',      t:'④ 作用域树（记录组 UID → 持久化机制）' },
-  { k:'vendor',     t:'⑤ 签名主体树（Developer Name）' },
-  { k:'config',     t:'⑥ 配置来源树（URL → 配置放在哪）' },
-  { k:'exec',       t:'⑦ 可执行落点树（Executable Path → 可执行文件落在哪）' },
-  { k:'generation', t:'⑧ 代数分组（Generation，非层级）' }
-];
-var TREEDESC = {
-  parent: '把每条记录的「父标识符」指向的那条记录作为父节点。父记录通常是 Type 为 developer 的开发者记录（如 Example Corp、Acme Inc），也可能是某个应用条目（如 2.com.example.toolbox）。同一条目只会挂在第一个匹配的父节点下；找不到父记录时作为顶层节点，并标注「跨组父」。',
-  embedded: '按记录自身列出的「嵌入项标识符」建立父子关系：这条记录的 Embedded Item Identifiers 里写了谁，谁就是它的子节点。它与①方向相反、集合也不完全重合 —— 两者差异本身就是线索。',
-  bundle: '按 Bundle ID 归堆：优先用记录自己的 Bundle Identifier，没有就退回到标识符基名或 Assoc. Bundle IDs 的第一个值。同一 Bundle 的应用条目、代理、守护进程会聚到一起。',
-  scope: '还原 dump 的三层结构：记录组（UID -2 / 0 / 501）→ 持久化机制（daemon / agent / login item / app / 插件 / developer）→ 条目。',
-  vendor: '按代码签名证书里的 Developer Name 归堆，一眼看出「哪些东西是同一家签的」。没有签名信息的归入「（无签名信息）」。',
-  config: '回答「配置放在哪里」。一级 = 注册位置类别（系统守护进程配置 / 全局代理配置 / 用户代理配置 / 系统内置 / 应用包自身 / 应用包内嵌组件），二级 = 该类别下的所属目录，三级 = 条目。依据字段是 URL —— 它指向的是 plist 或注册载体本身，不是可执行文件。',
-  exec: '回答「可执行文件落在哪里」，与⑥是两件事。一级 = 落点性质（系统特权 Helper / 系统应用支持目录 / 系统库其它位置 / 应用包内 / 本地安装目录 / 用户主目录 / 相对路径），二级 = 所属目录。依据字段是 Executable Path。全部记录都会出现，但只有真正带独立可执行文件的那部分会落到具体目录下，其余集中归入末尾的「无独立可执行文件」桶。',
-  generation: '把 Generation 相同的一批记录放在一个桶里。注意：这只是分组，不是层级关系 —— Generation 不代表父子代际，详见「字段说明」。'
-};
+/* ------------------------------------------------------------------ 关系树
+ * 标题与说明都在字典里（tree.<键>.t / tree.<键>.d），加一种语言不必动这一段。 */
+var TREEMODE_ORDER = ['parent', 'embedded', 'bundle', 'scope', 'vendor', 'config', 'exec', 'generation'];
+function treeDesc(k){ return T('tree.' + k + '.d'); }
 
 function treeItems(){
   return ITEMS.filter(function(it){ return !S.treeOnlyOn || it.enabled === true; });
@@ -503,11 +1110,11 @@ function uidMeta(u){
 }
 function uidGroupLabel(u){
   var meta = uidMeta(u);
-  return '记录组 UID ' + u + '　' + (meta ? meta.group_uuid : '');
+  return T('uid.group', u, meta ? meta.group_uuid : '');
 }
 function uidGroupNote(u){
   var meta = uidMeta(u);
-  return meta ? ('ServiceManagement migrated=' + meta.sm_migrated + '　LaunchServices registered=' + meta.ls_registered) : '';
+  return meta ? T('uid.note', meta.sm_migrated, meta.ls_registered) : '';
 }
 
 /* 递归建节点。带祖先集合与深度上限：万一出现循环引用，截断而不是递归到爆。 */
@@ -530,7 +1137,10 @@ function mkNode(it, kids, noteOf, anc, depth){
     cyc = list.length;
   }
   var note = (noteOf && noteOf[k0]) || '';
-  if (cyc) note = note ? (note + '；' + cyc + ' 个子项因循环引用被截断') : (cyc + ' 个子项因循环引用被截断');
+  if (cyc) {
+    var cycTxt = T('tree.cycle', cyc);
+    note = note ? (note + T('sep.note') + cycTxt) : cycTxt;
+  }
   return { type:'item', it:it, note:note, children: ch };
 }
 
@@ -564,7 +1174,7 @@ function buildParentTree(items){
       var pk = nid(byId[pid][0]);
       (kids[pk] = kids[pk] || []).push(it);
     } else {
-      if (!isNullish(pid) && !byId[pid]) noteOf[nid(it)] = '父记录未登记：' + pid;
+      if (!isNullish(pid) && !byId[pid]) noteOf[nid(it)] = T('tree.orphan', pid);
       roots.push(it);
     }
   });
@@ -591,17 +1201,17 @@ function buildEmbedTree(items){
   items.forEach(function(it){ claimerById[nid(it)] = it; });
   items.forEach(function(it){
     var k = nid(it), notes = [];
-    if (extra[k]) notes.push('另被 ' + extra[k] + ' 条记录声明为嵌入项');
+    if (extra[k]) notes.push(T('tree.embed.extra', extra[k]));
     if (parentOf[k]){
       var claimer = claimerById[parentOf[k]];
       var tp = it.parent_identifier;
       if (claimer && !isNullish(tp) && claimer.identifier !== tp){
         var owner = byId[tp] && byId[tp][0];
         var ownerLabel = owner ? (isNullish(owner.name) ? owner.identifier_base : owner.name) : tp;
-        notes.push('自述父级 ' + ownerLabel + '，与嵌入声明方不一致');
+        notes.push(T('tree.embed.mismatch', ownerLabel));
       }
     }
-    if (notes.length) noteOf[k] = notes.join('；');
+    if (notes.length) noteOf[k] = notes.join(T('sep.note'));
     if (!parentOf[k]) roots.push(it);
   });
   return wrapByUid(roots, kids, noteOf);
@@ -617,18 +1227,18 @@ function buildGroupTree(groups){
 }
 
 function buildBundleTree(items){
-  var order = [], map = {};
+  var order = [], map = {}, none = T('tree.nobundle');
   items.forEach(function(it){
-    var k = isNullish(it.bundle_key) ? '（无 Bundle ID）' : it.bundle_key;
+    var k = isNullish(it.bundle_key) ? none : it.bundle_key;
     if (!map[k]) { map[k] = []; order.push(k); }
     map[k].push(it);
   });
   order.sort(function(a, b){
-    if (a === '（无 Bundle ID）') return 1;
-    if (b === '（无 Bundle ID）') return -1;
+    if (a === none) return 1;
+    if (b === none) return -1;
     return a.localeCompare(b);
   });
-  return buildGroupTree(order.map(function(k){ return { label:k, items:map[k] }; }));
+  return buildGroupTree(order.map(function(k){ return { label: show(k), items: map[k] }; }));
 }
 
 function buildScopeTree(items){
@@ -636,7 +1246,7 @@ function buildScopeTree(items){
   groupByUid(items).forEach(function(u){
     var mechs = {}, morder = [];
     u.items.forEach(function(it){
-      var m = it.type_mechanism || '(未知机制)';
+      var m = it.type_mechanism || T('tree.nomech');
       if (!mechs[m]) { mechs[m] = []; morder.push(m); }
       mechs[m].push(it);
     });
@@ -656,18 +1266,18 @@ function buildScopeTree(items){
 }
 
 function buildVendorTree(items){
-  var order = [], map = {};
+  var order = [], map = {}, none = T('tree.novendor');
   items.forEach(function(it){
-    var k = isNullish(it.developer_name) ? '（无签名信息）' : it.developer_name;
+    var k = isNullish(it.developer_name) ? none : it.developer_name;
     if (!map[k]) { map[k] = []; order.push(k); }
     map[k].push(it);
   });
   order.sort(function(a, b){
-    if (a === '（无签名信息）') return 1;
-    if (b === '（无签名信息）') return -1;
+    if (a === none) return 1;
+    if (b === none) return -1;
     return a.localeCompare(b);
   });
-  return buildGroupTree(order.map(function(k){ return { label:k, items:map[k] }; }));
+  return buildGroupTree(order.map(function(k){ return { label: show(k), items: map[k] }; }));
 }
 
 /* ⑥⑦ 两棵「位置树」共用骨架：一级 = 类别，二级 = 所属目录，三级 = 条目。
@@ -685,28 +1295,8 @@ var KIND_ORDER = {
            '应用包内（Contents/MacOS）','应用包内（其它）','本地安装目录（/usr/local）',
            '用户主目录（用户可写）','相对路径','其它绝对路径','无独立可执行文件']
 };
-var KIND_NOTE = {
-  '系统守护进程配置': '/Library/LaunchDaemons —— 以 root 运行的守护进程配置',
-  '全局代理配置': '/Library/LaunchAgents —— 对所有用户生效的代理配置',
-  '用户代理配置': '~/Library/LaunchAgents —— 只对当前用户生效的代理配置',
-  '系统内置配置': '/System/Library 下的系统自带配置',
-  '应用包自身': '注册载体就是 .app 包本身（应用把自己注册为登录项）',
-  '应用包内嵌组件': '相对路径，落在所属应用包的 Contents/ 里面 —— 登录项 helper / QuickLook 扩展 / Spotlight 导入器',
-  '其它绝对路径': '绝对路径，但不属于上面任何一类',
-  '其它相对路径': '相对路径，且不在 Contents/ 下',
-  '无配置路径': 'URL 为 (null)：这类记录没有配置落点（都是 developer 父记录）',
-  '系统特权 Helper': '/Library/PrivilegedHelperTools —— 需要提权的常驻 helper',
-  '系统应用支持目录': '/Library/Application Support 下',
-  '系统库其它位置': '/Library 下但不属于上面两类',
-  '系统内置': '/System/Library 下',
-  '应用包内（Contents/MacOS）': '某个 .app 包里的可执行文件',
-  '应用包内（其它）': '在 .app 包内，但不在 Contents/MacOS',
-  '本地安装目录（/usr/local）': '/usr/local 下的第三方安装',
-  '用户主目录（用户可写）': '位于当前用户主目录 —— 该路径用户自己可写',
-  '相对路径': '相对路径（相对 plist 所在目录或工作目录）',
-  '其它绝对路径': '绝对路径，但不属于上面任何一类',
-  '无独立可执行文件': '没有 Executable Path：配置即载体，不单独启动一个程序'
-};
+/* 类别注解走字典 knote.<数据原值>；没配注解的类别返回空串，不显示注解行 */
+function kindNote(k){ return L['knote.' + k] ? T('knote.' + k) : ''; }
 
 function buildKindDirTree(items, kindCol, dirCol, mode){
   var order = KIND_ORDER[mode] || [], rank = {};
@@ -736,13 +1326,13 @@ function buildKindDirTree(items, kindCol, dirCol, mode){
     var itemsOf = function(a){ return a.map(function(it){ return { type:'item', it:it, note:'', children:[] }; }); };
     // 整类只有一个「无目录」桶时（如「无配置路径」）不必再套一层 —— 直接挂条目
     if (dirs.length === 1 && dirs[0] === '') {
-      return { type:'group', label:k, count: total, note: KIND_NOTE[k] || '', children: itemsOf(map[k]['']) };
+      return { type:'group', label: show(k), count: total, note: kindNote(k), children: itemsOf(map[k]['']) };
     }
     return {
-      type:'group', label:k, count: total, note: KIND_NOTE[k] || '',
+      type:'group', label: show(k), count: total, note: kindNote(k),
       children: dirs.map(function(d){
         return {
-          type:'group', label: d || '（未给出目录）', count: map[k][d].length, note:'',
+          type:'group', label: d || T('tree.nodir'), count: map[k][d].length, note:'',
           children: itemsOf(map[k][d])
         };
       })
@@ -754,20 +1344,20 @@ function buildConfigTree(items){ return buildKindDirTree(items, 'config_kind', '
 function buildExecTree(items){ return buildKindDirTree(items, 'exec_scope', 'exec_dir', 'exec'); }
 
 function buildGenerationTree(items){
-  var order = [], map = {};
+  var order = [], map = {}, unk = T('tree.genunknown');
   items.forEach(function(it){
-    var g = isNullish(it.generation) ? '未知' : String(it.generation);
+    var g = isNullish(it.generation) ? unk : String(it.generation);
     var n = parseInt(g, 10);
-    var k = isNaN(n) ? '未知' : String(n);
+    var k = isNaN(n) ? unk : String(n);
     if (!map[k]) { map[k] = []; order.push(k); }
     map[k].push(it);
   });
   order.sort(function(a, b){
-    if (a === '未知') return 1;
-    if (b === '未知') return -1;
+    if (a === unk) return 1;
+    if (b === unk) return -1;
     return parseInt(a, 10) - parseInt(b, 10);
   });
-  return buildGroupTree(order.map(function(k){ return { label:'Generation = ' + k, items:map[k] }; }));
+  return buildGroupTree(order.map(function(k){ return { label: T('tree.genlabel', k), items: map[k] }; }));
 }
 
 function nodeKey(n, i){
@@ -784,7 +1374,7 @@ function renderNode(n, depth, idx){
     h.push('<div class="trow" data-k="' + esc(k) + '"' + (hasKids ? ' data-kids="1"' : '') + '>'
       + '<span class="caret' + (hasKids ? '' : ' leaf') + '">' + (hasKids ? (isOpen ? '▾' : '▸') : '•') + '</span>'
       + '<span class="tlabel gnode">' + esc(n.label) + '</span>'
-      + '<span class="gcount">' + n.count + ' 项</span>'
+      + '<span class="gcount">' + esc(T('items', n.count)) + '</span>'
       + (n.note ? '<span class="gnote">' + esc(n.note) + '</span>' : '')
       + '</div>');
   } else {
@@ -795,10 +1385,10 @@ function renderNode(n, depth, idx){
       + '<span class="tid">' + esc(it.identifier) + '</span>'
       + '<span class="b mech">' + esc(it.type_mechanism) + '</span>'
       + (it.uid_domain === 'system' ? '' : '<span class="b uid">UID ' + esc(it.uid) + '</span>')
-      + (it.enabled === true ? '<span class="b on">启用</span>' : '<span class="b off">停用</span>')
-      + (it.allowed === false ? '<span class="b warn">已禁止</span>' : '')
-      + (it.dup_group ? '<span class="b dup">重复 ' + esc(it.dup_group) + '</span>' : '')
-      + '<span class="b gen">gen ' + esc(it.generation) + '</span>'
+      + (it.enabled === true ? '<span class="b on">' + esc(T('on')) + '</span>' : '<span class="b off">' + esc(T('off')) + '</span>')
+      + (it.allowed === false ? '<span class="b warn">' + esc(T('disallowed')) + '</span>' : '')
+      + (it.dup_group ? '<span class="b dup">' + esc(T('dup', it.dup_group)) + '</span>' : '')
+      + '<span class="b gen">' + esc(T('gen', it.generation)) + '</span>'
       + (n.note ? '<span class="gnote">' + esc(n.note) + '</span>' : '')
       + '</div>');
   }
@@ -825,7 +1415,7 @@ function renderTree(){
     default:           roots = buildParentTree(items);
   }
   var h = ['<div class="hint" style="margin-bottom:12px;line-height:1.7;max-width:1000px">'
-    + esc(TREEDESC[S.treeMode] || '') + '</div>'];
+    + esc(treeDesc(S.treeMode) || '') + '</div>'];
   roots.forEach(function(r, i){ h.push(renderNode(r, 0, String(i))); });
   var w = document.getElementById('treewrap');
   w.innerHTML = h.join('');
@@ -847,38 +1437,37 @@ function renderTree(){
       }
     };
   });
-  document.getElementById('countTree').innerHTML = '条目 <b>' + items.length + '</b> / ' + ITEMS.length
-    + '　·　顶层节点 <b>' + roots.length + '</b>';
+  document.getElementById('countTree').innerHTML = T('tree.count', items.length, ITEMS.length, roots.length);
 }
 
 /* ------------------------------------------------------------------ 详情 */
 function openDetail(it){
   S.sel = it;
   var d = document.getElementById('detail');
-  var h = ['<button class="close" id="dclose">关闭</button>'];
+  var h = ['<button class="close" id="dclose">' + esc(T('d.close')) + '</button>'];
   h.push('<h3>' + esc(isNullish(it.name) ? it.identifier_base : it.name) + '</h3>');
   h.push('<div class="sub" style="font-family:var(--mono);font-size:11.5px">' + esc(it.identifier) + '</div>');
   h.push('<div style="margin-top:8px">'
     + '<span class="b mech">' + esc(it.type_mechanism) + '</span> '
-    + '<span class="b">UID ' + esc(it.uid) + '（' + esc(it.uid_domain) + '）</span> '
-    + (it.enabled === true ? '<span class="b on">启用</span>' : '<span class="b off">停用</span>') + ' '
-    + (it.allowed === false ? '<span class="b warn">已禁止</span>' : '<span class="b on">已允许</span>') + ' '
-    + '<span class="b gen">gen ' + esc(it.generation) + '</span>'
-    + (it.dup_group ? ' <span class="b dup">重复 ' + esc(it.dup_group) + '</span>' : '')
+    + '<span class="b">' + esc(T('detail.uid', it.uid, it.uid_domain)) + '</span> '
+    + (it.enabled === true ? '<span class="b on">' + esc(T('on')) + '</span>' : '<span class="b off">' + esc(T('off')) + '</span>') + ' '
+    + (it.allowed === false ? '<span class="b warn">' + esc(T('disallowed')) + '</span>' : '<span class="b on">' + esc(T('allowed')) + '</span>') + ' '
+    + '<span class="b gen">' + esc(T('gen', it.generation)) + '</span>'
+    + (it.dup_group ? ' <span class="b dup">' + esc(T('dup', it.dup_group)) + '</span>' : '')
     + '</div>');
 
-  GROUPS.concat(['未预置字段','其它']).forEach(function(g, gi){
+  GROUPS.concat(['未预置字段', '其它']).forEach(function(g, gi){
     if (gi > 0 && GROUPS.indexOf(g) >= 0) return;
     var cols = ALLCOLS.filter(function(c){ return colGrp(c) === g && !isNullish(it[c]) && it[c] !== false; });
     if (!cols.length) return;
-    h.push('<div class="gtitle">' + esc(g) + '</div><table>');
+    h.push('<div class="gtitle">' + esc(show(g)) + '</div><table>');
     cols.forEach(function(c){
       var v = it[c];
       var txt;
-      if (Object.prototype.toString.call(v) === '[object Array]') txt = v.join(' ｜ ');
+      if (Object.prototype.toString.call(v) === '[object Array]') txt = v.join(T('sep.cell'));
       else if (v === true) txt = 'TRUE';
-      else txt = String(v);
-      h.push('<tr><td>' + esc(colZh(c)) + '<br><em style="color:var(--dim2);font-style:normal;font-family:var(--mono);font-size:10.5px">'
+      else txt = show(String(v));
+      h.push('<tr><td>' + esc(colLabel(c)) + '<br><em style="color:var(--dim2);font-style:normal;font-family:var(--mono);font-size:10.5px">'
         + esc(c) + '</em></td><td><code>' + esc(txt) + '</code></td></tr>');
     });
     h.push('</table>');
@@ -898,7 +1487,7 @@ function exportCsv(){
   var rows = sorted(filtered());
   var cols = S.cols.length ? S.cols : ALLCOLS;
   var L = [];
-  L.push(cols.map(function(c){ return q(colZh(c)); }).join(','));
+  L.push(cols.map(function(c){ return q(colLabel(c)); }).join(','));
   L.push(cols.map(function(c){ return q(c); }).join(','));
   rows.forEach(function(it){
     L.push(cols.map(function(c){
@@ -917,7 +1506,7 @@ function exportCsv(){
   var blob = new Blob(['\ufeff' + L.join('\r\n')], { type:'text/csv;charset=utf-8' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'btm-当前视图-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.csv';
+  a.download = T('csv.prefix') + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '') + '.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
@@ -925,24 +1514,17 @@ function exportCsv(){
 function renderHelp(){
   var el = document.getElementById('help');
   el.innerHTML = [
-    '<h2>这份文件是什么</h2>',
-    '<p><code>sudo sfltool dumpbtm</code> 把 macOS 的持久化项数据库（Background Task Management，'
-    + '<code>/private/var/db/com.apple.backgroundtaskmanagement/BackgroundItems-v*.btm</code>）导出成文本。'
-    + '凡是「能开机或登录后自动运行、不需要每次点确认」的东西都在里面：登录项、后台代理（agent）、'
-    + '系统守护进程（daemon）、QuickLook / Spotlight 插件、以及应用注册项。</p>',
-    '<p>本次快照：<code>' + esc(DATA.source_file) + '</code>，采集于 <code>' + esc(DATA.captured_at) + '</code>，'
-    + '主机 <code>' + esc(DATA.host) + '</code>，系统 <code>' + esc(DATA.os_version) + ' ' + esc(DATA.arch) + '</code>。</p>',
+    '<h2>' + T('help.what.h') + '</h2>',
+    '<p>' + T('help.what.p1') + '</p>',
+    '<p>' + T('help.what.p2', esc(DATA.source_file), esc(DATA.captured_at), esc(DATA.host),
+      esc(DATA.os_version), esc(DATA.arch)) + '</p>',
 
-    '<h2>三个 UID 记录组</h2>',
-    '<p>dump 按 UID 分组，最前面出现的 <code>-2</code> 是一个<strong>合成组</strong>，把散落在各处的后台项汇到一起；'
-    + '<code>0</code> 是 root；<code>501</code> 是普通用户。同一个软件常常同时出现在 <code>-2</code> 和 <code>501</code> 里，'
-    + '这不是重复，而是它在两个作用域各注册了一份。</p>',
+    '<h2>' + T('help.uid.h') + '</h2>',
+    '<p>' + T('help.uid.p') + '</p>',
 
-    '<h2>Generation（代数）到底是什么</h2>',
-    '<p><strong>它是 BTM 给每条记录维护的一个计数器，不代表父子代际。</strong>'
-    + 'Apple 没有公开它的定义（<code>sfltool</code> 连 man page 都还没写），所以这里只能给经验判断：'
-    + '同一条记录每被重新注册一次，这个数就往上走；数字越大，说明它被反复写入的次数越多。</p>',
-    '<p>本次快照的旁证：' + (function(){
+    '<h2>' + T('help.gen.h') + '</h2>',
+    '<p>' + T('help.gen.p1') + '</p>',
+    '<p>' + T('help.gen.ev') + (function(){
       var devMax = 0, top = [];
       ITEMS.forEach(function(it){
         var g = Number(it.generation);
@@ -954,38 +1536,31 @@ function renderHelp(){
       var names = top.slice(0, 4).map(function(x){
         var it = x[1];
         var nm = (it.name && it.name !== '(null)') ? it.name
-               : (it.identifier_base || it.identifier || '（无名）');
-        return '<code>' + esc(nm) + '</code> 是 ' + esc(x[0]);
+               : (it.identifier_base || it.identifier || T('noname'));
+        return T('help.gen.ev.name', esc(nm), esc(String(x[0])));
       });
-      return '所有 <code>developer</code> 开发者父记录都停在 ' + devMax
-        + ' 及以下，而排在最前的几条明显更高 —— ' + names.join('、') + '。';
-    })() + '这正是「每次启动都重新注册登录项」的程序该有的样子。</p>',
-    '<div class="warnbox"><p><strong>实用结论：</strong>不要用 Generation 判层级。它更大的价值是另一个方向 —— '
-    + '因为它会自己变化，所以前后两次快照里「只有 Generation 变了」通常不意味着你改了什么。'
-    + '本工作区的比较工具专门把它单列成一层「仅代数变化」，避免真正的人工改动被它刷掉。</p></div>',
+      return T('help.gen.ev.body', devMax, names.join(T('sep.list')));
+    })() + T('help.gen.ev.tail') + '</p>',
+    '<div class="warnbox"><p>' + T('help.gen.warn') + '</p></div>',
 
-    '<h2>Identifier（标识符）的前缀数字</h2>',
-    '<p>标识符形如 <code>16.com.example.daemon</code>，点号前的数字是作用域码，和 Type 的取值域一致：</p>',
-    '<table><tr><th>前缀</th><th>含义</th><th>本次条数</th></tr>',
-    ['2|应用', '4|登录项', '8|用户代理', '16|系统守护进程', '64|Spotlight 插件', '2048|QuickLook 插件'].map(function(x){
-      var p = x.split('|')[0], zh = x.split('|')[1];
-      var n = ITEMS.filter(function(it){ return String(it.identifier_scope) === p; }).length;
-      return '<tr><td><code>' + p + '</code></td><td>' + zh + '</td><td>' + n + '</td></tr>';
+    '<h2>' + T('help.prefix.h') + '</h2>',
+    '<p>' + T('help.prefix.p') + '</p>',
+    '<table><tr><th>' + T('help.prefix.c1') + '</th><th>' + T('help.prefix.c2') + '</th><th>'
+      + T('help.prefix.c3') + '</th></tr>',
+    [['2', '应用'], ['4', '登录项'], ['8', '用户代理'], ['16', '系统守护进程'],
+     ['64', 'Spotlight 插件'], ['2048', 'QuickLook 插件']].map(function(x){
+      var n = ITEMS.filter(function(it){ return String(it.identifier_scope) === x[0]; }).length;
+      return '<tr><td><code>' + x[0] + '</code></td><td>' + esc(show(x[1])) + '</td><td>' + n + '</td></tr>';
     }).join(''),
     '</table>',
-    '<p>拆出来放在 <code>identifier_scope</code> / <code>identifier_scope_zh</code> / <code>identifier_base</code> 三列里，'
-    + '方便按「去掉前缀的名字」聚合。</p>',
+    '<p>' + T('help.prefix.p2') + '</p>',
 
-    '<h2>Parent Identifier（父标识符）</h2>',
-    '<p>指向「谁负责注册我」。多数情况下指向一条 Type 为 <code>developer</code> 的开发者父记录 —— 这类记录本身不执行任何程序，'
-    + '它的 <code>Identifier</code> 直接就是开发者名，如 <code>Example Corp</code>、<code>Acme Inc</code>、'
-    + '<code>Unknown Developer</code>；也可能是某个应用条目，如 <code>2.com.example.toolbox</code>。</p>',
-    '<p>派生列：<code>parent_kind</code>（父是哪一类）、<code>child_count</code>（有多少条挂在它下面）、'
-    + '<code>depth</code>（层级）、<code>node_path</code>（完整归属链）。</p>',
+    '<h2>' + T('help.parent.h') + '</h2>',
+    '<p>' + T('help.parent.p1') + '</p>',
+    '<p>' + T('help.parent.p2') + '</p>',
 
-    '<h2>Embedded Item Identifiers（嵌入项）</h2>',
-    '<p>一条记录内嵌了哪些子项。它和 Parent Identifier 是<strong>同一关系的两个方向，但集合并不重合</strong>。'
-    + (function(){
+    '<h2>' + T('help.embed.h') + '</h2>',
+    '<p>' + T('help.embed.p1') + (function(){
       var byId = {};
       ITEMS.forEach(function(it){ if (it.identifier && !byId[it.identifier]) byId[it.identifier] = it; });
       for (var i = 0; i < ITEMS.length; i++) {
@@ -997,75 +1572,56 @@ function renderHelp(){
         for (var j = 0; j < list.length; j++) {
           var c = byId[list[j]];
           if (c && c.parent_identifier && c.parent_identifier !== p.identifier) {
-            return '本次快照里就有例子：<code>' + esc(p.identifier) + '</code> 声明自己嵌入了 <code>' + esc(c.identifier)
-              + '</code>，但后者自述的父级却是 <code>' + esc(c.parent_identifier) + '</code>。'
-              + '两个字段对不上，本身就是值得看一眼的信号。</p>';
+            return T('help.embed.mismatch', esc(p.identifier), esc(c.identifier), esc(c.parent_identifier)) + '</p>';
           }
         }
       }
-      return '本次快照里两个字段恰好自洽；一旦出现对不上，那本身就是值得看一眼的信号。</p>';
+      return T('help.embed.consistent') + '</p>';
     })(),
 
-    '<h2>Assoc. Bundle IDs 与 Bundle Identifier</h2>',
-    '<p><code>Bundle Identifier</code> 是这条记录所属的应用包名；<code>Assoc. Bundle IDs</code> 是它声明关联的包名列表。'
-    + '两者合起来派生出 <code>bundle_key</code>（归组用的键），「Bundle 归组树」就是按它聚合的，'
-    + '可以把同一 App 的条目、代理、守护进程聚回一堆。</p>',
+    '<h2>' + T('help.bundle.h') + '</h2>',
+    '<p>' + T('help.bundle.p') + '</p>',
 
-    '<h2>Disposition（处置状态）</h2>',
-    '<p>形如 <code>[enabled, allowed, visible, notified] (0xb)</code>。已拆成 5 个布尔列：'
-    + '<code>enabled</code> 已启用、<code>allowed</code> 已允许、<code>visible</code> 可见、'
-    + '<code>notified</code> 已通知、<code>hidden</code> 隐藏（<code>visible</code> 取反）。</p>',
-    '<p>值得注意的是 <code>enabled</code> 与 <code>allowed</code> 的四种组合是否自相矛盾 —— '
-    + '<code>enabled + disallowed</code> 或 <code>disabled + allowed</code> 属于已知的数据库不一致，'
-    + '可以用「仅已禁止」筛选快速看一眼。</p>',
+    '<h2>' + T('help.disp.h') + '</h2>',
+    '<p>' + T('help.disp.p1') + '</p>',
+    '<p>' + T('help.disp.p2') + '</p>',
 
-    '<h2>其它列</h2>',
-    '<table><tr><th>列</th><th>说明</th></tr>',
-    [['Type', '原文形如 <code>legacy daemon (0x10010)</code>。拆成 <code>type_mechanism</code>（机制）、'
-      + '<code>type_modifiers</code>（修饰词，如 legacy / curated）、<code>type_hex</code>（类型码）。'],
-     ['URL', '注册载体（配置）的落点：<strong>配置放在哪里</strong>。指向的是 plist，或应用包 / 应用包内的组件本身，<strong>不是</strong>可执行文件。'
-      + '派生 <code>url_path</code>（去掉 <code>file://</code> 并解开百分号转义）、<code>config_kind</code>（注册位置类别）、<code>config_dir</code>（所属目录）。'],
-     ['Executable Path', '真正被加载执行的文件：<strong>可执行文件落在哪里</strong>。派生 <code>exec_scope</code>（落点性质）、<code>exec_dir</code>（所属目录）。'
-      + '<strong>它与 URL 是两个独立的问题</strong>——同一条记录可以两者都有、只有其一，或都没有；两者不一致时说明 plist 注册的配置与真正跑起来的程序不在同一处。'],
-     ['dup_group', '同一 UID 下 <code>标识符基名 + 持久化机制</code> 完全相同的多条记录，会打上同一个 D 编号。'
-      + (function(){
+    '<h2>' + T('help.other.h') + '</h2>',
+    '<table><tr><th>' + T('help.other.c1') + '</th><th>' + T('help.other.c2') + '</th></tr>',
+    [['Type', T('help.other.type')],
+     ['URL', T('help.other.url')],
+     ['Executable Path', T('help.other.exec')],
+     ['dup_group', T('help.other.dup') + (function(){
           var g = {};
           ITEMS.forEach(function(it){ if (it.dup_group) (g[it.dup_group] = g[it.dup_group] || []).push(it); });
           var ks = Object.keys(g);
-          if (!ks.length) return '本次快照没有重复注册。';
-          return '本次有 ' + ks.length + ' 处 —— ' + ks.map(function(k){
-            return '<code>' + esc(g[k][0].identifier) + '</code>（' + g[k].length + ' 条）';
-          }).join('、') + '。';
+          if (!ks.length) return T('help.other.dup.none');
+          return T('help.other.dup.list', ks.length, ks.map(function(k){
+            return T('help.other.dup.item', esc(g[k][0].identifier), g[k].length);
+          }).join(T('sep.list')));
         })()
-      + '这些记录<strong>一条都没有被删掉</strong>，只是被标记出来。'],
-     ['match_key', '跨快照比对用的语义主键（标识符基名｜机制）。'],
-     ['source_line', '该条记录在原始 dump 文本里的行号，方便逐字回溯。']]
+      + T('help.other.dup.tail')],
+     ['match_key', T('help.other.matchkey')],
+     ['source_line', T('help.other.srcline')]]
       .map(function(r){ return '<tr><td><code>' + r[0] + '</code></td><td>' + r[1] + '</td></tr>'; }).join(''),
     '</table>',
 
-    '<h2>八棵关系树怎么选</h2>',
-    '<table><tr><th>树</th><th>看什么</th></tr>',
-    TREEMODES.map(function(m){
-      return '<tr><td>' + esc(m.t) + '</td><td>' + esc(TREEDESC[m.k]) + '</td></tr>';
+    '<h2>' + T('help.trees.h') + '</h2>',
+    '<table><tr><th>' + T('help.trees.c1') + '</th><th>' + T('help.trees.c2') + '</th></tr>',
+    TREEMODE_ORDER.map(function(k){
+      return '<tr><td>' + esc(T('tree.' + k + '.t')) + '</td><td>' + esc(treeDesc(k)) + '</td></tr>';
     }).join(''),
     '</table>',
-    '<p class="hint">说明：① ② 两棵树里，同一条记录只挂在第一个匹配到的父节点下；'
-    + '跨 UID 的父引用会照原样标注为「跨组父」而不会被强行搬走，以确保分组归属与 dump 一致。</p>',
+    '<p class="hint">' + T('help.trees.note') + '</p>',
 
-    '<h2>⑥ 与 ⑦ 为什么是两棵树</h2>',
-    '<p><code>URL</code> 与 <code>Executable Path</code> 看起来都在说「路径」，但它们回答的是'
-    + '<strong>两个不同的问题</strong>：前者是<strong>配置（plist / 应用包）注册在哪里</strong>，'
-    + '后者是<strong>真正被执行的程序落在哪里</strong>。任意一条记录都属于下面三种形态之一：</p>',
-    '<table><tr><th>形态</th><th>说明</th></tr>',
-    '<tr><td>两者都有</td><td>配置注册在某处，且另有独立可执行文件（daemon / agent 都是这种）</td></tr>',
-    '<tr><td>只有 URL</td><td>配置即载体：登录项、QuickLook 扩展、Spotlight 导入器、把自己注册为登录项的应用</td></tr>',
-    '<tr><td>两者都无</td><td>developer 父记录，只表示「归属」，没有落点</td></tr>',
+    '<h2>' + T('help.two.h') + '</h2>',
+    '<p>' + T('help.two.p1') + '</p>',
+    '<table><tr><th>' + T('help.two.c1') + '</th><th>' + T('help.two.c2') + '</th></tr>',
+    T('help.two.r1'),
+    T('help.two.r2'),
+    T('help.two.r3'),
     '</table>',
-    '<p class="hint">所以⑥与⑦<strong>不是同一批东西的两种切法</strong>——它们的叶子集合天然重叠但不相等，'
-    + '各自末尾都有一个「无」桶把不适用的记录如实收好（⑥ 收无 URL 的 developer 父记录，⑦ 收不单独启程序的配置载体），'
-    + '一条都不会被悄悄丢掉。'
-    + '同时注意类别不是树里现猜的 —— <code>config_kind</code> / <code>config_dir</code> / '
-    + '<code>exec_scope</code> / <code>exec_dir</code> 四列在表格视图里也能看到，两边口径一致。</p>'
+    '<p class="hint">' + T('help.two.note') + '</p>'
   ].join('');
 }
 
@@ -1087,29 +1643,33 @@ function setView(v){
 
 /* ------------------------------------------------------------------ 初始化 */
 (function init(){
-  var sub = '取自 ' + DATA.source_file;
-  sub += '　·　采集 ' + DATA.captured_at;
-  sub += '　·　排序口径 ' + DATA.sort_preset;
-  if (DATA.null_as_empty) sub += '　·　(null) 已清空';
+  localizeDom();
+
+  var DS = BTM_LANG === 'en' ? ' · ' : '　·　';
+  var sub = T('sub.from', DATA.source_file);
+  sub += DS + T('sub.captured', DATA.captured_at);
+  sub += DS + T('sub.sort', show(DATA.sort_preset));
+  if (DATA.null_as_empty) sub += DS + T('sub.nulled');
   document.getElementById('sub').textContent = sub;
 
   var nOn = ITEMS.filter(function(it){ return it.enabled === true; }).length;
   var nNoSign = ITEMS.filter(function(it){ return isNullish(it.developer_name) && isNullish(it.team_identifier); }).length;
   var nDup = ITEMS.filter(function(it){ return !!it.dup_group; }).length;
+  var chip = function(k, n){ return '<span class="chip">' + esc(T(k)) + ' <b>' + n + '</b></span>'; };
   document.getElementById('stat').innerHTML =
-      '<span class="chip">条目 <b>' + ITEMS.length + '</b></span>'
-    + '<span class="chip">记录组 <b>' + SECTIONS.length + '</b></span>'
-    + '<span class="chip">字段 <b>' + ALLCOLS.length + '</b></span>'
-    + '<span class="chip">已启用 <b>' + nOn + '</b></span>'
-    + '<span class="chip">无签名信息 <b>' + nNoSign + '</b></span>'
-    + '<span class="chip">重复注册 <b>' + nDup + '</b></span>';
+      chip('stat.items', ITEMS.length)
+    + chip('stat.sections', SECTIONS.length)
+    + chip('stat.cols', ALLCOLS.length)
+    + chip('stat.on', nOn)
+    + chip('stat.nosign', nNoSign)
+    + chip('stat.dup', nDup);
 
   // 记录组 / 机制 下拉
   var fu = document.getElementById('fUid');
   SECTIONS.forEach(function(s){
     var o = document.createElement('option');
     o.value = String(s.uid);
-    o.textContent = 'UID ' + s.uid + '（' + s.item_count + ' 项）';
+    o.textContent = T('f.uidopt', s.uid, s.item_count);
     fu.appendChild(o);
   });
   var fm = document.getElementById('fMech');
@@ -1121,9 +1681,9 @@ function setView(v){
 
   // 关系树下拉
   var tm = document.getElementById('treeMode');
-  TREEMODES.forEach(function(m){
+  TREEMODE_ORDER.forEach(function(k){
     var o = document.createElement('option');
-    o.value = m.k; o.textContent = m.t;
+    o.value = k; o.textContent = T('tree.' + k + '.t');
     tm.appendChild(o);
   });
   tm.value = S.treeMode;

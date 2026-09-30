@@ -509,6 +509,10 @@ node btm-selftest.js /tmp/t/latest/btm_items.html        # page self-test (inclu
 node btm-selftest.js --i18n btm-view.tpl.html            # dictionary-only check, no snapshot needed
 ```
 
+Beyond the page self-test, `btm.sh` has two guards of its own that prefer failing to emitting a broken file: after rendering the HTML it asserts both dictionary blocks are present, and after writing the CSV it asserts that the first three bytes really are `EF BB BF`.
+
+The latter came out of a real failure — macOS's `/usr/bin/printf` does not understand `\x` escapes, so `printf '\xef\xbb\xbf'` emits the nine literal characters `xefxbbxbf`. The BOM was purely decorative, Excel showed a polluted first column header, and nothing about the CSV looked wrong on inspection. The fix is to use octal `\357\273\277`.
+
 Assertions are **derived from the data** (not pinned to any one machine's software list), so they hold on a different machine or a different snapshot. Key checks:
 
 - Each tree's item-node count must be **≤ the total record count** (guards against duplicate mounting)

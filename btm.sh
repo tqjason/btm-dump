@@ -122,7 +122,6 @@ SNAP_DIR="$OUTDIR/$LABEL-$STAMP"
 TMP_DIR=$(/usr/bin/mktemp -d -t btm)
 trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
 
-/bin/mkdir -p "$SNAP_DIR"
 TSV="$SNAP_DIR/btm_items.tsv"
 CSV="$SNAP_DIR/btm_items.csv"
 JSON="$SNAP_DIR/btm_items.json"
@@ -131,25 +130,31 @@ META="$SNAP_DIR/meta.json"
 CAPTURE="$SNAP_DIR/capture.txt"
 
 # ------------------------------------------------------------------ 1. 取原始文本
+# 先落到临时目录，全部校验通过后才建快照目录。
+# 若直接往 $SNAP_DIR 写，shell 的 > 重定向会先建出 0 字节文件，
+# 采集失败时 rmdir 清不掉（非空），会在输出目录里留下半截空快照。
 if [[ -n $RAWFILE ]]; then
   [[ -f $RAWFILE ]] || { print -ru2 -- "找不到文件：$RAWFILE"; exit 1 }
-  /bin/cp "$RAWFILE" "$SNAP_DIR/dumpbtm.txt"
+  RAW_SRC=${RAWFILE:A}
   SRC_ABS=${RAWFILE:A}
   MODE="file"
 else
   print -r -- "正在执行：sudo sfltool dumpbtm > $SNAP_DIR/dumpbtm.txt"
   # 沿用原脚本的写法：存在 SUDO_ASKPASS 时自动加 -A，避免卡在交互式密码输入
-  if ! sudo ${SUDO_ASKPASS:+-A} sfltool dumpbtm > "$SNAP_DIR/dumpbtm.txt"; then
+  if ! sudo ${SUDO_ASKPASS:+-A} sfltool dumpbtm > "$TMP_DIR/dumpbtm.txt"; then
     print -ru2 -- "采集失败（可能是取消了授权，或未以可提权用户运行）。"
-    rmdir "$SNAP_DIR" 2>/dev/null
     exit 1
   fi
+  RAW_SRC="$TMP_DIR/dumpbtm.txt"
   SRC_ABS="$SNAP_DIR/dumpbtm.txt"
   MODE="live"
 fi
 
+[[ -s $RAW_SRC ]] || { print -ru2 -- "原始 dump 为空：$RAW_SRC"; exit 1 }
+
+/bin/mkdir -p "$SNAP_DIR"
 RAW="$SNAP_DIR/dumpbtm.txt"
-[[ -s $RAW ]] || { print -ru2 -- "原始 dump 为空：$RAW"; exit 1 }
+/bin/cp "$RAW_SRC" "$RAW"
 
 # ------------------------------------------------------------------ 2. 解析 -> 无损 TSV
 "$AWK" -v SORT="$SORTP" -v HDRFILE="$TMP_DIR/hdr" -v SECFILE="$TMP_DIR/sec.tsv" \
@@ -165,8 +170,16 @@ NSEC=$(( $(/usr/bin/wc -l < "$TMP_DIR/sec.tsv" | tr -d ' ') - 1 ))
 [[ $NITEM -gt 0 ]] || { print -ru2 -- "解析出 0 条记录，原始文件格式可能不对：$RAW"; exit 1 }
 
 # ------------------------------------------------------------------ 3. CSV
-/usr/bin/printf '\xef\xbb\xbf' > "$CSV"
+# 注意：macOS 的 /usr/bin/printf 不认 \x 转义 —— 写 '\xef\xbb\xbf' 会输出字面量
+# 「xefxbbxbf」九个字符，BOM 形同虚设，Excel 打开首列表头被污染。必须用八进制。
+/usr/bin/printf '\357\273\277' > "$CSV"
 "$AWK" -v MODE=csv -v NULLMODE="$NULLMODE" -f "$SCRIPT_DIR/btm-emit.awk" "$TSV" >> "$CSV"
+
+# BOM 自检：前三个字节必须是 EF BB BF，否则宁可失败也不产出坏文件。
+if [[ $(/usr/bin/od -An -tx1 -N 3 "$CSV" | tr -d ' \n') != "efbbbf" ]]; then
+  print -ru2 -- "CSV 的 UTF-8 BOM 写入失败（前 3 字节不是 EF BB BF）：$CSV"
+  exit 1
+fi
 
 # ------------------------------------------------------------------ 4. JSON
 HOSTNAME_S=$(/bin/hostname -s 2>/dev/null || /bin/hostname)

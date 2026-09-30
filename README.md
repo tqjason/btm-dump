@@ -507,6 +507,10 @@ node btm-selftest.js /tmp/t/latest/btm_items.html        # 页面自检（含语
 node btm-selftest.js --i18n btm-view.tpl.html            # 只查模板双语字典，不需要快照
 ```
 
+除页面自检外，`btm.sh` 自己还有两处**宁可失败也不产出坏文件**的守卫：渲染完 HTML 后断言双语字典块都在；写完 CSV 后断言前三个字节确实是 `EF BB BF`。
+
+后者是实测踩出来的——macOS 的 `/usr/bin/printf` 不认 `\x` 转义，`printf '\xef\xbb\xbf'` 会原样吐出 `xefxbbxbf` 这九个字符，BOM 形同虚设、Excel 打开首列表头被污染，而肉眼扫一眼 CSV 完全看不出来。修法是用八进制 `\357\273\277`。
+
 断言是**从数据推导**的（不绑定任何一台机器的软件清单），因此换一台机器、换一份快照同样成立。重点覆盖：
 
 - 每棵树的条目节点数必须 **≤ 总条数**（防止重复挂载）

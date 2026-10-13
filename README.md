@@ -10,7 +10,7 @@ Pure zsh + the system's own awk. **Zero dependencies, zero installation.**
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-[中文说明](README.md) · [Quick start](#5-quick-start) · [Fields & glossary](#11-fields--glossary) · [How it works](#10-how-it-works)
+[中文说明](README.zh.md) · [Quick start](#5-quick-start) · [Fields & glossary](#11-fields--glossary) · [How it works](#10-how-it-works)
 
 > Note: the tool's UI, column names and generated reports are in Chinese. This document describes the same tool in English.
 
@@ -489,8 +489,8 @@ btm-dump/
 │   ├── demo-before.txt   Synthetic example: before (fully fictional)
 │   ├── demo-after.txt    Synthetic example: after
 │   └── demo-changes.md   Real diff report produced from the two files above
-├── README.md             Chinese documentation
-├── README.en.md          This file
+├── README.md             This file (English, the default)
+├── README.zh.md          Chinese documentation
 ├── LICENSE               MIT
 └── .gitignore            Ignores local capture output such as snapshots/
 ```

@@ -10,7 +10,7 @@ macOS 后台项（登录项 / 后台代理 / 守护进程 / QuickLook·Spotlight
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-[English](README.en.md) · [快速开始](#五快速开始) · [字段与术语](#十一字段与术语速查) · [工作原理](#十工作原理)
+[English](README.md) · [快速开始](#五快速开始) · [字段与术语](#十一字段与术语速查) · [工作原理](#十工作原理)
 
 ---
 
@@ -487,8 +487,8 @@ btm-dump/
 │   ├── demo-before.txt   合成示例：改动前（全部虚构，无任何真实机器数据）
 │   ├── demo-after.txt    合成示例：改动后
 │   └── demo-changes.md   上面两份跑出来的真实比对报告
-├── README.md             中文说明（本文件）
-├── README.en.md          English README
+├── README.md             English README（默认首页）
+├── README.zh.md          中文说明（本文件）
 ├── LICENSE               MIT
 └── .gitignore            忽略 snapshots/ 等本地采集产物
 ```
